@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>TT PTPM – Chùa online</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2a2a; font-family: system-ui, sans-serif; color: #fff; }
+    canvas { display: block; }
+    .hud { position: fixed; pointer-events: none; text-shadow: 0 1px 3px #0008; }
+    #top { top: 12px; left: 16px; font-size: 14px; }
+    #top b { font-size: 18px; }
+    #hint { bottom: 86px; width: 100%; text-align: center; font-size: 13px; opacity: .8; }
+    #bar { position: fixed; bottom: 20px; width: 100%; display: flex; gap: 10px; justify-content: center; }
+    button { pointer-events: auto; border: 0; border-radius: 999px; padding: 12px 20px; font-size: 15px;
+             background: #f3e7cfee; color: #4a3520; cursor: pointer; }
+    button:active { transform: scale(.96); }
+    #start { position: fixed; inset: 0; display: grid; place-items: center; background: #1d2a2acc; text-align: center; }
+    #start div { max-width: 360px; padding: 0 20px; }
+    #start h1 { font-weight: 300; letter-spacing: .3em; margin: 0 0 8px; }
+    #start input { padding: 10px 14px; border-radius: 999px; border: 0; font-size: 15px; text-align: center; margin: 14px 0; }
+  </style>
+</head>
+<body>
+  <div id="top" class="hud"><b>山寺 TT PTPM</b><br />Đang online: <span id="count">1</span> · Lạy: <span id="bows">0</span>/108 · Nhang: <span id="sticks">0</span></div>
+  <div id="hint" class="hud">WASD / chạm để di chuyển · E để ngồi lên đệm · kéo chuột để xoay · cuộn để zoom</div>
+  <div id="bar">
+    <button id="bow">🙇 Lạy (B)</button>
+    <button id="sit">🧘 Ngồi (E)</button>
+    <button id="greet">🙏 Chào (G)</button>
+    <button id="incense">🪔 Thắp nhang (T)</button>
+    <button id="mute">🔔 Âm thanh</button>
+  </div>
+  <div id="start"><div>
+    <h1>TT PTPM</h1>
+    <p>Ngôi chùa trên núi. Hãy dừng lại một chút.</p>
+    <input id="name" maxlength="16" placeholder="Tên của bạn" /><br />
+    <button id="enter">Vào chùa</button>
+  </div></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

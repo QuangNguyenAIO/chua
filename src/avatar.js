@@ -1,0 +1,305 @@
+import * as THREE from 'three';
+
+const { lerp } = THREE.MathUtils;
+const flat = (color) => new THREE.MeshStandardMaterial({ color, flatShading: false, roughness: 0.8 });
+
+function label(text) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 64;
+  const g = c.getContext('2d');
+  g.font = '28px system-ui, sans-serif';
+  g.textAlign = 'center';
+  const w = g.measureText(text).width;
+  g.fillStyle = 'rgba(0,0,0,.45)';
+  g.beginPath(); g.roundRect(128 - w / 2 - 12, 12, w + 24, 42, 21); g.fill();
+  g.fillStyle = '#fff';
+  g.fillText(text, 128, 43);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  s.scale.set(2.4, 0.6, 1);
+  s.position.y = 2.5;
+  s.renderOrder = 10;
+  return s;
+}
+
+const HIP_Y = 0.95; // standing hip height
+const KNEEL_Y = 0.26; // hip height when kneeling on the heels
+
+/**
+ * Low-poly figure facing +z, built as a joint hierarchy:
+ * hips -> upper (torso -> neck -> head, shoulders -> upper arm -> elbow -> forearm/sleeve -> hand)
+ *      -> two legs (hip -> thigh -> knee -> shin -> foot).
+ *
+ * kind:
+ *  'laity'   Phật tử in brown clothes (áo nâu, quần nâu) with dark hair; `hue` varies shade and hairstyle.
+ *  'sweeper' young monk (sư tiểu): shaved head, smaller, carries a broom.
+ *  'abbot'   head monk (trụ trì): shaved head, golden robe with a red kasaya, kneels chanting at a wooden fish (mõ).
+ */
+export class Avatar {
+  constructor(hue, name, kind = 'laity') {
+    this.kind = kind;
+    this.group = new THREE.Group();
+
+    let shirtC, pantsC;
+    if (kind === 'sweeper') { shirtC = new THREE.Color().setHSL(0.1, 0.5, 0.45); pantsC = new THREE.Color().setHSL(0.09, 0.45, 0.28); this.group.scale.setScalar(0.88); }
+    else if (kind === 'abbot') { shirtC = new THREE.Color().setHSL(0.12, 0.65, 0.5); pantsC = new THREE.Color().setHSL(0.1, 0.5, 0.3); }
+    else {
+      const l = 0.2 + 0.06 * hue; // dark earthy brown: lighting lifts it considerably
+      shirtC = new THREE.Color().setHSL(0.065, 0.5, l + 0.03);
+      pantsC = new THREE.Color().setHSL(0.065, 0.45, l - 0.06);
+    }
+    const robe = flat(shirtC);
+    const robeDark = flat(pantsC);
+    const kasaya = flat(0x9a2e1c);
+    const skin = flat(0xf0c8a0);
+    const dark = flat(0x2a1c14);
+    const cream = flat(0xf3ead2);
+    const beadMat = flat(0x6b3d1e);
+    const sandal = flat(0x4e2518);
+    const monk = kind !== 'laity';
+
+    const part = (parent, geo, m, x = 0, y = 0, z = 0) => {
+      const mesh = new THREE.Mesh(geo, m);
+      mesh.position.set(x, y, z);
+      mesh.castShadow = true;
+      parent.add(mesh);
+      return mesh;
+    };
+    const joint = (parent, x = 0, y = 0, z = 0) => {
+      const g = new THREE.Group();
+      g.position.set(x, y, z);
+      parent.add(g);
+      return g;
+    };
+
+    this.hips = joint(this.group, 0, HIP_Y, 0);
+    this.upper = joint(this.hips); // pivots at the waist for bowing
+
+    // Torso, collar, belt, tunic skirt
+    part(this.upper, new THREE.CylinderGeometry(0.27, 0.3, 0.66, 16), robe, 0, 0.33, 0);
+    if (monk) {
+      for (const s of [-1, 1]) {
+        const lapel = part(this.upper, new THREE.BoxGeometry(0.05, 0.34, 0.03), cream, s * 0.07, 0.5, 0.265);
+        lapel.rotation.z = s * 0.35;
+      }
+    } else {
+      part(this.upper, new THREE.TorusGeometry(0.1, 0.03, 8, 16), robeDark, 0, 0.64, 0).rotation.x = Math.PI / 2; // round collar
+    }
+    part(this.hips, new THREE.CylinderGeometry(0.315, 0.315, 0.09, 18), robeDark, 0, 0.02, 0);
+    this.skirt = part(this.hips, new THREE.CylinderGeometry(0.3, 0.4, 0.56, 18), robe, 0, -0.26, 0);
+
+    if (kind === 'abbot') { // kasaya draped over one shoulder, with a hem band
+      part(this.upper, new THREE.CylinderGeometry(0.288, 0.321, 0.67, 16, 1, false, 0, Math.PI), kasaya, 0, 0.33, 0);
+      part(this.hips, new THREE.CylinderGeometry(0.44, 0.45, 0.1, 18), kasaya, 0, -0.5, 0);
+    }
+
+    // Neck, beads, head
+    part(this.upper, new THREE.CylinderGeometry(0.075, 0.09, 0.14, 14), skin, 0, 0.7, 0);
+    const beads = part(this.upper, new THREE.TorusGeometry(0.17, 0.028, 8, 20), beadMat, 0, 0.62, 0.04);
+    beads.rotation.x = Math.PI / 2 + 0.25;
+    this.head = joint(this.upper, 0, 0.9, 0);
+    const skull = part(this.head, new THREE.IcosahedronGeometry(0.22, 3), skin);
+    skull.scale.set(0.95, 1.1, 1);
+    for (const s of [-1, 1]) {
+      part(this.head, new THREE.BoxGeometry(0.03, 0.09, 0.06), skin, s * 0.21, -0.01, 0); // ears
+      part(this.head, new THREE.BoxGeometry(0.045, 0.045, 0.02), dark, s * 0.085, 0.03, 0.205); // eyes
+      const brow = part(this.head, new THREE.BoxGeometry(0.08, 0.02, 0.02), dark, s * 0.085, 0.09, 0.2);
+      brow.rotation.z = s * 0.15;
+    }
+    part(this.head, new THREE.ConeGeometry(0.03, 0.07, 10), skin, 0, -0.03, 0.225).rotation.x = Math.PI / 2;
+    this.mouth = part(this.head, new THREE.BoxGeometry(0.07, 0.016, 0.02), flat(0xa8554a), 0, -0.1, 0.19);
+    if (!monk) {
+      const hair = part(this.head, new THREE.SphereGeometry(0.235, 14,12, 0, Math.PI * 2, 0, Math.PI * 0.55), dark, 0, 0.02, -0.02);
+      hair.scale.y = 1.1;
+      if (hue >= 0.5) part(this.head, new THREE.IcosahedronGeometry(0.09, 2), dark, 0, 0.12, -0.24); // bun
+    }
+
+    // Arms: shoulder -> upper arm -> elbow -> forearm with wide sleeve -> hand
+    this.arms = [-1, 1].map((side) => {
+      const shoulder = joint(this.upper, side * 0.33, 0.56, 0);
+      const cap = kind === 'abbot' && side > 0;
+      part(shoulder, new THREE.IcosahedronGeometry(cap ? 0.115 : 0.1, 2), cap ? kasaya : robe);
+      part(shoulder, new THREE.CylinderGeometry(0.08, 0.07, 0.3, 14), robe, 0, -0.15, 0);
+      const elbow = joint(shoulder, 0, -0.3, 0);
+      part(elbow, new THREE.CylinderGeometry(0.075, 0.15, 0.3, 14), robe, 0, -0.15, 0); // flared sleeve
+      const hand = part(elbow, new THREE.BoxGeometry(0.09, 0.14, 0.05), skin, 0, -0.34, 0);
+      return { side, shoulder, elbow, hand };
+    });
+
+    // Legs: hip -> thigh -> knee -> shin -> foot
+    this.legs = [-1, 1].map((side) => {
+      const hip = joint(this.hips, side * 0.14, 0, 0);
+      part(hip, new THREE.CylinderGeometry(0.105, 0.08, 0.46, 14), robeDark, 0, -0.23, 0);
+      const knee = joint(hip, 0, -0.46, 0);
+      part(knee, new THREE.CylinderGeometry(0.078, 0.06, 0.42, 14), robeDark, 0, -0.21, 0);
+      part(knee, new THREE.BoxGeometry(0.12, 0.06, 0.26), sandal, 0, -0.43, 0.06);
+      return { side, hip, knee };
+    });
+
+    // Props
+    if (kind === 'sweeper') { // tre broom held in the right hand, bristles on the ground
+      this.broom = joint(this.arms[1].elbow, 0, -0.34, 0);
+      part(this.broom, new THREE.CylinderGeometry(0.022, 0.022, 1.6, 12), flat(0x7a5a30), 0, -0.45, 0);
+      part(this.broom, new THREE.ConeGeometry(0.24, 0.6, 16), flat(0xc2a060), 0, -1.0, 0);
+      this.broom.rotation.x = 1.25;
+    }
+    if (kind === 'abbot') { // wooden fish (mõ) on a small cushion, with a mallet in the right hand
+      this.mo = joint(this.group, 0, 0, 0.5);
+      part(this.mo, new THREE.CylinderGeometry(0.2, 0.24, 0.1, 18), flat(0xe3a73b), 0, 0.05, 0);
+      const fish = part(this.mo, new THREE.SphereGeometry(0.2, 14,12), flat(0x9a3a1a), 0, 0.27, 0);
+      fish.scale.set(1.1, 0.8, 0.9);
+      part(this.mo, new THREE.BoxGeometry(0.12, 0.02, 0.02), dark, 0, 0.3, 0.17); // slit
+      const mallet = joint(this.arms[1].hand, 0, -0.04, 0.02);
+      part(mallet, new THREE.CylinderGeometry(0.018, 0.018, 0.28, 12), flat(0x7a5a30), 0, 0, 0.12).rotation.x = Math.PI / 2;
+      part(mallet, new THREE.SphereGeometry(0.045, 10,10), flat(0x9a3a1a), 0, 0, 0.26);
+    }
+
+    this.sweeping = kind === 'sweeper';
+    this.chanting = kind === 'abbot';
+    this.onTap = null; // called each time the mallet strikes the wooden fish
+    this.onPlant = null; // called when the offered incense is planted in the burner
+    this.planted = false;
+    this.incenseProp = joint(this.upper, 0, 0.55, 0.47); // three sticks held between the palms during the offering
+    for (const i of [-1, 0, 1]) {
+      part(this.incenseProp, new THREE.CylinderGeometry(0.01, 0.01, 0.5, 6), flat(0xa83a22), i * 0.035, 0.22, 0).rotation.z = i * -0.06;
+      part(this.incenseProp, new THREE.SphereGeometry(0.026, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff7a2a }), i * 0.035 + i * -0.015, 0.47, 0);
+    }
+    this.incenseProp.visible = false;
+    this.nameSprite = label(name);
+    this.group.add(this.nameSprite);
+    this.action = null;
+    this.t = 0;
+    this.walk = 0;
+    this.clock = 0;
+    this.lastTap = -1;
+    this.amp = 0; // walk-cycle strength, eased
+    this.sit = 0; // 0 standing .. 1 kneeling, eased
+    this.sitTarget = 0;
+    this.pray = 0; // 0 arms at sides .. 1 palms together, eased
+    this.seated = false;
+    if (kind === 'abbot') { this.setSeated(true); this.sit = 1; }
+  }
+
+  setName(name) {
+    this.group.remove(this.nameSprite);
+    this.nameSprite.material.map.dispose();
+    this.nameSprite = label(name);
+    this.nameSprite.position.y = this.seated ? 1.75 : 2.5;
+    this.group.add(this.nameSprite);
+  }
+
+  /** Kneeling on a cushion: thighs forward, shins folded back, hips drop to the heels. */
+  setSeated(on) {
+    this.seated = on;
+    this.sitTarget = on ? 1 : 0;
+    this.nameSprite.position.y = on ? 1.75 : 2.5;
+  }
+
+  /** Starts 'bow', 'greet' or 'incense'. Returns false if another action is still playing. */
+  play(a) {
+    if (this.action) return false;
+    this.action = a;
+    this.t = 0;
+    this.planted = false;
+    return true;
+  }
+
+  update(dt, moving) {
+    const k = 1 - Math.exp(-dt * 10); // frame-rate independent easing
+    this.clock += dt;
+    this.sit += (this.sitTarget - this.sit) * k;
+    this.amp += ((moving && !this.seated ? 1 : 0) - this.amp) * k;
+    this.walk += moving ? dt * 10 : 0;
+    const w = this.walk;
+
+    let pitch = 0, praying = this.seated && !this.chanting; // palms together while kneeling
+    if (this.action === 'incense') {
+      // 0-0.8 raise the sticks, 0.8-2.6 three small bows (vái), 3.0 plant them in the burner, until 4.0 settle
+      const t = (this.t += dt);
+      praying = t < 3.0;
+      if (t >= 0.8 && t < 2.6) pitch = 0.32 * Math.max(0, Math.sin(((t - 0.8) / 0.6) * Math.PI));
+      else if (t >= 3.0) pitch = 0.22 * Math.sin(Math.min(1, (t - 3.0) / 1.0) * Math.PI);
+      this.incenseProp.visible = t < 3.0;
+      if (t >= 3.0 && !this.planted) { this.planted = true; this.onPlant?.(); }
+      if (t >= 4.0) this.action = null;
+    } else if (this.action) {
+      this.t += dt;
+      const bow = this.action === 'bow';
+      const d = bow ? 2.2 : 1.4;
+      const e = Math.sin(Math.min(this.t / d, 1) * Math.PI);
+      pitch = Math.min(1, e * 2.2) * (bow ? 1.1 + 0.3 * this.sit : 0.35);
+      praying = true;
+      if (this.t >= d) this.action = null;
+    } else this.incenseProp.visible = false;
+    this.pray += ((praying ? 1 : 0) - this.pray) * k;
+
+    // Torso and head
+    this.upper.rotation.x = pitch;
+    this.upper.rotation.y = 0;
+    this.upper.rotation.z = this.amp * Math.sin(w) * 0.05;
+    this.head.rotation.x = pitch * 0.25;
+    this.hips.position.y = lerp(HIP_Y + this.amp * Math.abs(Math.sin(w)) * 0.04, KNEEL_Y, this.sit);
+    this.hips.position.z = lerp(0, -0.12, this.sit);
+    this.skirt.scale.set(1, lerp(1, 0.55, this.sit), lerp(1, 1.25, this.sit));
+    this.skirt.position.y = lerp(-0.26, -0.1, this.sit);
+
+    // Legs: swing while walking, fold under the body when kneeling
+    for (const { side, hip, knee } of this.legs) {
+      const ph = w + (side > 0 ? Math.PI : 0);
+      hip.rotation.x = lerp(Math.sin(ph) * 0.7 * this.amp, -1.5, this.sit);
+      knee.rotation.x = lerp(Math.max(0, -Math.sin(ph + 0.6)) * 0.9 * this.amp, 2.9, this.sit);
+      hip.rotation.z = side * 0.04 * (1 - this.sit);
+    }
+
+    // Arms: counter-swing while walking; blend to palms together (chắp tay)
+    for (const { side, shoulder, elbow } of this.arms) {
+      const ph = w + (side > 0 ? 0 : Math.PI);
+      shoulder.rotation.x = lerp(Math.sin(ph) * 0.6 * this.amp, -0.65, this.pray);
+      shoulder.rotation.z = lerp(side * 0.07, -side * 0.98, this.pray);
+      elbow.rotation.x = lerp(-0.12 - Math.max(0, Math.sin(ph)) * 0.4 * this.amp, -1.75, this.pray);
+      elbow.rotation.z = -side * 0.5 * this.pray; // forearms close in so the palms meet
+    }
+
+    if (this.action === 'incense' && this.t >= 3.0) { // right arm reaches out to plant the sticks
+      const R = this.arms[1];
+      R.shoulder.rotation.set(-1.15, 0, -0.1);
+      R.elbow.rotation.set(-0.35, 0, 0);
+    }
+    if (this.sweeping && !this.action) this.poseSweep(moving);
+    if (this.chanting && !this.action) this.poseChant();
+    this.mouth.scale.y = this.chanting ? 1 + 2.2 * Math.abs(Math.sin(this.clock * 7)) : 1;
+  }
+
+  /** Both hands on the broom, sweeping side to side while walking. */
+  poseSweep(moving) {
+    const sw = Math.sin(this.clock * 2.4);
+    const a = moving ? 1 : 0.3;
+    const [L, R] = this.arms; // right hand on the broom; left arm swings free for balance
+    R.shoulder.rotation.set(-0.9 + 0.2 * sw * a, 0, -0.12);
+    R.elbow.rotation.set(-0.55, 0, -0.1);
+    L.shoulder.rotation.set(0.3 * sw * a, 0, 0.12);
+    L.elbow.rotation.set(-0.3, 0, 0);
+    this.upper.rotation.x = 0.2;
+    this.upper.rotation.y = 0.28 * sw * a;
+  }
+
+  /** Kneeling: left hand counts prayer beads at the chest, right hand taps the wooden fish once a beat. */
+  poseChant() {
+    const beat = this.clock * 1.1; // beats per second
+    const down = Math.pow(0.5 * (1 + Math.cos(beat * Math.PI * 2)), 3); // 1 at the strike
+    const L = this.arms[0], R = this.arms[1];
+    L.shoulder.rotation.x = -0.7; L.shoulder.rotation.z = 0.45;
+    L.elbow.rotation.x = -1.6; L.elbow.rotation.z = 0.35;
+    R.shoulder.rotation.x = -0.5; R.shoulder.rotation.z = -0.6;
+    R.elbow.rotation.x = lerp(-0.75, -0.3, down);
+    R.elbow.rotation.z = 0;
+    this.upper.rotation.x = 0.22 + 0.04 * down; // lean toward the fish
+    this.head.rotation.x = 0.05 * down;
+    const idx = Math.floor(beat);
+    if (idx !== this.lastTap) {
+      this.lastTap = idx;
+      if (idx > 0) this.onTap?.();
+    }
+  }
+}
