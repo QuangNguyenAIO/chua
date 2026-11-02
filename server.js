@@ -6,7 +6,14 @@ import { WebSocketServer } from 'ws';
 
 const PORT = process.env.PORT || 3001;
 const DIST = join(fileURLToPath(new URL('.', import.meta.url)), 'dist');
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.json': 'application/json',
+  '.ico': 'image/x-icon',
+};
 const MAX_PLAYERS = 10000;
 
 // Serves the built client in production; in dev Vite handles it and proxies /ws here.
@@ -16,7 +23,7 @@ const http = createServer(async (req, res) => {
   try {
     if (!normalize(full).startsWith(DIST)) throw new Error('outside dist');
     const file = await readFile(full);
-    res.writeHead(200, { 'Content-Type': MIME[extname(path)] || 'application/octet-stream' });
+    res.writeHead(200, { 'Content-Type': MIME[extname(full)] || 'application/octet-stream' });
     res.end(file);
   } catch {
     res.writeHead(404).end('Not found');
