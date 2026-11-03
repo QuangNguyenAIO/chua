@@ -311,6 +311,7 @@ export class Avatar {
     this.onTap = null; // called each time the mallet strikes the wooden fish
     this.onPlant = null; // called when the offered incense is planted in the burner
     this.planted = false;
+    this.pose = null; // prison activity pose, see applyPose()
     this.incenseProp = joint(this.upper, 0, 0.55, 0.47); // three sticks held between the palms during the offering
     for (const i of [-1, 0, 1]) {
       part(this.incenseProp, new THREE.CylinderGeometry(0.01, 0.01, 0.5, 6), flat(0xa83a22), i * 0.035, 0.22, 0).rotation.z = i * -0.06;
@@ -342,11 +343,11 @@ export class Avatar {
   }
 
   /** Shows a chat bubble above the head; it fades out and disappears after 15 seconds. A new message replaces the old one. */
-  say(text) {
+  say(text, seconds = BUBBLE_SECONDS) {
     this.clearBubble();
     this.bubble = makeBubble(text);
     this.bubble.position.y = this.nameSprite.position.y + 0.32;
-    this.bubbleT = BUBBLE_SECONDS;
+    this.bubbleT = seconds;
     this.group.add(this.bubble);
   }
 
@@ -416,6 +417,7 @@ export class Avatar {
     this.upper.rotation.y = 0;
     this.upper.rotation.z = this.amp * Math.sin(w) * 0.05;
     this.head.rotation.x = pitch * 0.25;
+    this.head.rotation.y = 0;
     this.hips.position.y = lerp(HIP_Y + this.amp * Math.abs(Math.sin(w)) * 0.04, KNEEL_Y, this.sit);
     this.hips.position.z = lerp(0, -0.12, this.sit);
     this.skirt.scale.set(1, lerp(1, 0.55, this.sit), lerp(1, 1.25, this.sit));
@@ -447,6 +449,98 @@ export class Avatar {
     if (this.chanting && !this.action) this.poseChant();
     if (this.tail) this.tail.rotation.z = Math.sin(this.clock * (this.amp > 0.3 ? 8 : 3.5)) * (this.kind === 'dog' ? 0.5 : 0.35); // wag / sway
     this.mouth.scale.y = this.chanting ? 1 + 2.2 * Math.abs(Math.sin(this.clock * 7)) : 1;
+    if (this.pose) this.applyPose();
+  }
+
+  /** Name of a prison activity pose, or null for normal behaviour. See applyPose(). */
+  setPose(name) { this.pose = name || null; }
+
+  /** Position in the basketball-shot cycle, 0..1: arms load at 0, ball leaves near 0.45, caught again at 0.86. */
+  shotPhase() { return (this.clock % 2.2) / 2.2; }
+
+  /** Overrides arms, legs and torso for scripted prison activities. Runs after the normal pose so it wins. */
+  applyPose() {
+    const c = this.clock, [L, R] = this.arms;
+    const arm = (a, sx, sz, ex, ez = 0) => { a.shoulder.rotation.set(sx, 0, sz); a.elbow.rotation.set(ex, 0, ez); };
+    const talk = () => { this.mouth.scale.y = 1 + 2 * Math.abs(Math.sin(c * 9)); };
+    const sit = (hipY) => { // thighs forward, shins straight down: on a bench, chair or toilet
+      this.hips.position.y = hipY;
+      this.hips.position.z = 0;
+      for (const l of this.legs) { l.hip.rotation.set(-1.5, 0, l.side * 0.05); l.knee.rotation.set(1.5, 0, 0); }
+    };
+    switch (this.pose) {
+      case 'punch': { // boxing stance, fists trading blows
+        for (const [a, ph] of [[R, 0], [L, Math.PI]]) {
+          const k = Math.max(0, Math.sin(c * 6 + ph));
+          arm(a, -0.9 - 0.7 * k, -a.side * 0.15, -1.7 + 1.5 * k);
+        }
+        this.upper.rotation.set(0.15, Math.sin(c * 6) * 0.3, 0);
+        this.hips.position.y -= 0.08;
+        this.legs[0].hip.rotation.set(0.25, 0, -0.14); this.legs[0].knee.rotation.x = 0.35;
+        this.legs[1].hip.rotation.set(-0.3, 0, 0.14); this.legs[1].knee.rotation.x = 0.4;
+        this.head.rotation.x = 0.1;
+        talk();
+        break;
+      }
+      case 'argue': // jabbing finger, other hand waving, head shaking
+        arm(R, -1.35 + Math.sin(c * 7) * 0.2, -0.25, -0.3);
+        arm(L, -0.6 + Math.sin(c * 5 + 1) * 0.3, -0.5, -1.2);
+        this.upper.rotation.set(0.12, 0, 0);
+        this.head.rotation.y = Math.sin(c * 6) * 0.3;
+        talk();
+        break;
+      case 'stop': // guard: arm out, palm forward, shouting
+        arm(R, -1.65, -0.1, -0.15);
+        arm(L, 0, -0.3, -0.2);
+        talk();
+        break;
+      case 'cheer': // arms up, alternating
+        for (const a of [L, R]) arm(a, -2.5 + 0.4 * Math.sin(c * 7 + (a.side > 0 ? 0 : Math.PI)), a.side * 0.3, -0.25);
+        talk();
+        break;
+      case 'sulk': // head and shoulders down
+        this.upper.rotation.x = 0.28;
+        this.head.rotation.x = 0.45;
+        break;
+      case 'sitChair':
+        sit(0.6);
+        arm(L, -0.6, -0.05, -0.9); arm(R, -0.6, 0.05, -0.9);
+        break;
+      case 'toilet':
+        sit(0.5);
+        this.upper.rotation.x = 0.25;
+        this.head.rotation.x = 0.3;
+        arm(L, -0.9, 0, -0.7); arm(R, -0.9, 0, -0.7);
+        break;
+      case 'eat': { // spoon to mouth
+        sit(0.6);
+        const k = (1 + Math.sin(c * 3)) / 2;
+        arm(L, -0.6, -0.05, -0.9);
+        arm(R, -0.9, -0.1, -1.0 - 1.3 * k);
+        this.head.rotation.x = 0.1 * k;
+        this.mouth.scale.y = 1 + 0.8 * Math.abs(Math.sin(c * 6));
+        break;
+      }
+      case 'sleep': // lying down: the caller rotates the whole body
+        for (const a of [L, R]) arm(a, 0, a.side * 0.12, -0.2);
+        break;
+      case 'jack': { // jumping jacks
+        const u = (1 + Math.sin(c * 7)) / 2;
+        for (const a of [L, R]) arm(a, 0, a.side * (0.15 + 2.75 * u), -0.05);
+        for (const l of this.legs) l.hip.rotation.z = l.side * 0.35 * u;
+        this.hips.position.y += 0.14 * u;
+        break;
+      }
+      case 'shoot': { // basketball jump shot
+        const ph = this.shotPhase();
+        const lift = ph < 0.35 ? 0 : ph < 0.5 ? (ph - 0.35) / 0.15 : ph < 0.86 ? 1 : Math.max(0, 1 - (ph - 0.86) / 0.14);
+        for (const a of [L, R]) arm(a, THREE.MathUtils.lerp(-0.9, -2.75, lift), -a.side * 0.12, THREE.MathUtils.lerp(-1.9, -0.2, lift));
+        const knee = ph < 0.35 ? 0.5 * (ph / 0.35) : ph < 0.5 ? 0.5 * (1 - (ph - 0.35) / 0.15) : 0;
+        for (const l of this.legs) { l.knee.rotation.x = knee; l.hip.rotation.x = -knee * 0.5; }
+        this.hips.position.y -= knee * 0.25;
+        break;
+      }
+    }
   }
 
   /** Both hands on the broom, sweeping side to side while walking. */
