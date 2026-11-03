@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { buildWorld, floorY, BOUNDS, OBSTACLES, CUSHIONS, BURNERS } from './world.js';
 import { Incense } from './incense.js';
+import { buildPrison } from './prison.js';
 import { findPath } from './nav.js';
 import { Avatar } from './avatar.js';
 import { startAudio, bell, toggleMute, moTap } from './audio.js';
@@ -18,6 +19,7 @@ document.body.prepend(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 400);
 const ground = buildWorld(scene);
+const prison = buildPrison(scene); // after the world so its obstacles join the same list
 
 // Incense: every burner starts with a few ever-burning sticks so the smoke is always there; visitors add more.
 const incense = new Incense(scene, BURNERS);
@@ -55,29 +57,54 @@ const abbot = new Avatar(0, 'Thầy trụ trì', 'abbot');
   scene.add(abbot.group);
 }
 
-// The little monk sweeps a rectangle around the incense burner, clear of the ponds and the stele.
-const sweeper = new Avatar(0, 'Sư tiểu', 'sweeper');
-scene.add(sweeper.group);
-const SWEEP_LOOP = [[-5, 12], [5, 12], [5, -0.5], [-5, -0.5]];
-const SWEEP_SPEED = 1.3;
-const sweepLegs = SWEEP_LOOP.map((a, i) => {
-  const b = SWEEP_LOOP[(i + 1) % SWEEP_LOOP.length];
-  return { a, b, len: Math.hypot(b[0] - a[0], b[1] - a[1]) };
-});
-const sweepLen = sweepLegs.reduce((n, l) => n + l.len, 0);
+// Sweepers walk closed loops through courtyard aisles that are clear of ponds, towers, the stele and the burner.
+function makeSweeper(avatar, loop, speed) {
+  scene.add(avatar.group);
+  const legs = loop.map((a, i) => {
+    const b = loop[(i + 1) % loop.length];
+    return { a, b, len: Math.hypot(b[0] - a[0], b[1] - a[1]) };
+  });
+  return { avatar, legs, total: legs.reduce((n, l) => n + l.len, 0), speed };
+}
+const sweepers = [
+  makeSweeper(new Avatar(0, 'Sư tiểu', 'sweeper'), [[-5, 12], [5, 12], [5, -0.5], [-5, -0.5]], 1.3), // round the incense burner
+  makeSweeper(new Avatar(0.7, 'Mèo Mướp', 'cat'), [[-18, -8], [-18, -18], [-15, -18], [-15, -8]], 1.0), // west of the hall
+  makeSweeper(new Avatar(0.2, 'Cún Vàng', 'dog'), [[18, -8], [18, -20], [15, -20], [15, -8]], 1.1), // east of the hall
+  makeSweeper(new Avatar(0.2, 'Mèo Cam', 'cat'), [[-22, 14.5], [22, 14.5]], 0.9), // along the front, behind the gate
+];
+
+// Prison panel: shown while the player is inside the hall; the clock and daily routine come from real time.
+const prisonHud = document.getElementById('prisonHud');
+let hudTimer = 0, hudShown = false;
+function updatePrisonHud(dt) {
+  if (!me) return;
+  hudTimer -= dt;
+  if (hudTimer > 0) return;
+  hudTimer = 0.5;
+  const p = me.avatar.group.position;
+  const inside = prison.contains(p.x, p.z);
+  if (inside !== hudShown) { hudShown = inside; prisonHud.style.display = inside ? 'block' : 'none'; }
+  if (inside) {
+    const { time, label, residents } = prison.status();
+    prisonHud.innerHTML = `🕒 ${time.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} – ${label}<br>👥 Phạm nhân và cán bộ: ${residents}`;
+  }
+}
 
 function updateNpcs(dt) {
-  let d = ((Date.now() / 1000) * SWEEP_SPEED) % sweepLen;
-  for (const l of sweepLegs) {
-    if (d <= l.len) {
-      const k = d / l.len, g = sweeper.group;
-      g.position.set(l.a[0] + (l.b[0] - l.a[0]) * k, 0, l.a[1] + (l.b[1] - l.a[1]) * k);
-      g.rotation.y = Math.atan2(l.b[0] - l.a[0], l.b[1] - l.a[1]);
-      break;
+  const now = Date.now() / 1000;
+  for (const sw of sweepers) {
+    let d = (now * sw.speed) % sw.total;
+    for (const l of sw.legs) {
+      if (d <= l.len) {
+        const k = d / l.len, g = sw.avatar.group;
+        g.position.set(l.a[0] + (l.b[0] - l.a[0]) * k, 0, l.a[1] + (l.b[1] - l.a[1]) * k);
+        g.rotation.y = Math.atan2(l.b[0] - l.a[0], l.b[1] - l.a[1]);
+        break;
+      }
+      d -= l.len;
     }
-    d -= l.len;
+    sw.avatar.update(dt, true);
   }
-  sweeper.update(dt, true);
   abbot.update(dt, false);
 }
 let ws = null;
@@ -348,6 +375,8 @@ function updateRemotes(dt) {
 function tick() {
   const dt = Math.min(clock.getDelta(), 0.1);
   updateNpcs(dt);
+  prison.update(dt);
+  updatePrisonHud(dt);
   incense.update(dt);
   if (me) { updateMe(dt); updateRemotes(dt); }
   else {

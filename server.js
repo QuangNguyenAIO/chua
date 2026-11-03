@@ -69,7 +69,7 @@ wss.on('connection', (ws) => {
     let m;
     try { m = JSON.parse(raw); } catch { return; }
     if (m.t === 'move') {
-      me.x = num(m.x, 60); me.z = num(m.z, 60); me.ry = num(m.ry, 10);
+      me.x = num(m.x, 120); me.z = num(m.z, 120); me.ry = num(m.ry, 10);
       broadcast({ t: 'move', id, x: me.x, z: me.z, ry: me.ry }, ws);
     } else if (m.t === 'act' && (m.a === 'bow' || m.a === 'greet' || m.a === 'incense')) {
       broadcast({ t: 'act', id, a: m.a }, ws);

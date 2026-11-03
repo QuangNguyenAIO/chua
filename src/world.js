@@ -7,7 +7,7 @@ import { buddhaStatue, arhatStatue, maitreyaStatue } from './statues.js';
 // Roofs are curved with upturned corners (đao). Style follows Bái Đính and Ba Vàng: golden-tiled multi-tier main hall,
 // long Arhat galleries (hành lang La Hán) along both sides, a 13-storey stupa and giant statues at the rear of the compound.
 
-export const BOUNDS = 48;
+export const BOUNDS = 100; // the pagoda compound sits at the origin; the prison lies to the east
 export const CUSHIONS = [];
 export const OBSTACLES = [];
 export const BURNERS = []; // incense burners: { x, y, z, spread } where y is the ash surface sticks stand in
@@ -332,6 +332,21 @@ function tamQuan(parent) {
   }
 }
 
+// Small gate in the compound's east wall: two cream piers, a lintel and a curved roof.
+function sideGate(parent, x, z) {
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  for (const s of [-1, 1]) {
+    add(g, new THREE.BoxGeometry(1.0, 4.8, 1.0), M.cream, 0, 2.4, s * 3.6);
+    add(g, new THREE.BoxGeometry(1.3, 0.3, 1.3), M.stoneDark, 0, 0.15, s * 3.6);
+    add(g, new THREE.BoxGeometry(1.15, 0.3, 1.15), M.wood, 0, 4.7, s * 3.6);
+    obsBox(x, z + s * 3.6, 1.4, 1.4);
+  }
+  add(g, new THREE.BoxGeometry(0.9, 0.5, 7.0), M.woodDark, 0, 4.4, 0);
+  roof(g, 3.4, 9.4, 4.85, 1.2);
+  parent.add(g);
+}
+
 function wall(parent, x0, z0, x1, z1) {
   const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, w = Math.abs(x1 - x0) || 0.6, d = Math.abs(z1 - z0) || 0.6;
   add(parent, new THREE.BoxGeometry(w, 1.6, d), M.wall, cx, 0.8, cz);
@@ -511,18 +526,20 @@ function stoneLanterns(parent) {
 /** Builds the pagoda compound and returns the ground mesh. Click-to-move only accepts meshes flagged userData.walk. */
 export function buildWorld(scene) {
   scene.background = new THREE.Color(0xf2d9b0);
-  scene.fog = new THREE.Fog(0xf2d9b0, 50, 140);
+  scene.fog = new THREE.Fog(0xf2d9b0, 60, 220);
 
   scene.add(new THREE.HemisphereLight(0xfff1d8, 0x4b6a58, 1.1));
   const sun = new THREE.DirectionalLight(0xffe2b0, 2.2);
-  sun.position.set(-30, 45, 30);
+  sun.position.set(6, 45, 16); // aimed at the middle of pagoda + prison, same direction as before
+  sun.target.position.set(36, 0, -14);
+  scene.add(sun.target);
   sun.castShadow = true;
   sun.shadow.mapSize.set(4096, 4096);
   sun.shadow.normalBias = 0.06;
-  Object.assign(sun.shadow.camera, { left: -50, right: 50, top: 50, bottom: -50, near: 1, far: 140 });
+  Object.assign(sun.shadow.camera, { left: -95, right: 95, top: 95, bottom: -95, near: 1, far: 200 });
   scene.add(sun);
 
-  const ground = walkable(add(scene, new THREE.CircleGeometry(75, 12), M.grass));
+  const ground = walkable(add(scene, new THREE.CircleGeometry(240, 24), M.grass));
   ground.rotation.x = -Math.PI / 2;
   ground.castShadow = false;
   ground.receiveShadow = true;
@@ -543,28 +560,34 @@ export function buildWorld(scene) {
   incenseBurner(scene, 0, 2);
   stele(scene, -8, -0.5);
   stoneLanterns(scene);
-  bodhiTree(scene, 21, -14);
-  for (const [x, z] of [[-21, -22], [21, -24], [-14, -30], [14, -30], [-22, -42], [22, -42]]) frangipani(scene, x, z);
+  bodhiTree(scene, 21, -27);
+  for (const [x, z] of [[-21, -22], [21, -8], [-14, -30], [14, -30], [-22, -42], [22, -42]]) frangipani(scene, x, z);
 
   // Compound walls (front walls leave the three gates and lantern pillars free)
   for (const s of [-1, 1]) {
     wall(scene, s * 11.4, 18, s * 30, 18);
-    wall(scene, s * 30, 18, s * 30, -46);
+    if (s < 0) wall(scene, -30, 18, -30, -46);
+    else { // east wall has a side gate leading to the prison
+      wall(scene, 30, 18, 30, -10.4);
+      wall(scene, 30, -17.6, 30, -46);
+    }
   }
+  sideGate(scene, 30, -14);
   wall(scene, -30, -46, 30, -46);
 
   bamboo(scene, -24, -43);
   bamboo(scene, 24, -43);
 
-  for (let i = 0; i < 70; i++) {
-    const a = Math.random() * Math.PI * 2, r = 34 + Math.random() * 28;
+  for (let i = 0; i < 160; i++) {
+    const a = Math.random() * Math.PI * 2, r = 34 + Math.random() * 80;
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     if (Math.abs(x) < 33 && z > -52 && z < 24) continue; // keep clear of the compound
+    if (x > 30 && x < 104 && z > -44 && z < 16) continue; // ...and of the prison grounds and the road to it
     if (Math.abs(x) < 8 && z > 10) continue; // keep the road clear
     tree(scene, x, z, 0.8 + Math.random() * 0.8);
   }
-  for (let i = 0; i < 14; i++) {
-    const a = (i / 14) * Math.PI * 2 + Math.random() * 0.3, r = 90 + Math.random() * 25, s = 18 + Math.random() * 22;
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2 + Math.random() * 0.3, r = 175 + Math.random() * 30, s = 30 + Math.random() * 30;
     const m = add(scene, new THREE.ConeGeometry(s, s * (1.2 + Math.random() * 0.8), 5 + (i % 3)), i % 2 ? M.mount : M.mount2, Math.cos(a) * r, s * 0.5, Math.sin(a) * r);
     m.castShadow = false;
   }
