@@ -60,6 +60,48 @@ const FUR = {
 const HAIR = [0x6a3d1e, 0x2a1c14, 0xc4c4c4, 0xe0443c, 0xe8c070, 0x8a5a2a];
 const SKINS = [0xf0c8a0, 0xe6b48a, 0xd9a273];
 
+const BUBBLE_SECONDS = 15;
+
+/** Speech bubble texture: word-wrapped text (max 4 lines) in a rounded box with a small tail. */
+function makeBubble(text) {
+  const font = '30px system-ui, sans-serif', maxW = 420, pad = 22, lineH = 38, tail = 18;
+  const c = document.createElement('canvas');
+  let g = c.getContext('2d');
+  g.font = font;
+  const lines = [];
+  let line = '';
+  for (const ch of [...text]) {
+    const t = line + ch;
+    if (g.measureText(t).width > maxW && line) {
+      const sp = line.lastIndexOf(' ');
+      if (sp > 0 && ch !== ' ') { lines.push(line.slice(0, sp)); line = line.slice(sp + 1) + ch; }
+      else { lines.push(line); line = ch.trim() ? ch : ''; }
+    } else line = t;
+  }
+  if (line) lines.push(line);
+  if (lines.length > 4) { lines.length = 4; lines[3] = lines[3].replace(/.$/, '') + '…'; }
+  const w = Math.ceil(Math.max(...lines.map((l) => g.measureText(l).width))) + pad * 2;
+  const h = lines.length * lineH + pad * 2;
+  c.width = w + 6; c.height = h + tail + 6;
+  g = c.getContext('2d'); // resizing the canvas reset the context
+  g.font = font;
+  g.fillStyle = 'rgba(255,255,255,0.96)';
+  g.strokeStyle = 'rgba(60,40,20,0.5)';
+  g.lineWidth = 3;
+  g.beginPath(); g.roundRect(3, 3, w, h, 20); g.fill(); g.stroke();
+  g.beginPath(); g.moveTo(w / 2 - 12, h + 2); g.lineTo(w / 2, h + tail); g.lineTo(w / 2 + 12, h + 2); g.closePath(); g.fill();
+  g.fillStyle = '#2a1c14';
+  g.textBaseline = 'middle';
+  lines.forEach((l, i) => g.fillText(l, 3 + pad, 3 + pad + lineH * (i + 0.5)));
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  s.center.set(0.5, 0); // anchor at the tail so the bubble grows upward
+  s.scale.set(c.width / 150, c.height / 150, 1);
+  s.renderOrder = 11;
+  return s;
+}
+
 const HIP_Y = 0.95; // standing hip height
 const KNEEL_Y = 0.26; // hip height when kneeling on the heels
 
@@ -299,6 +341,23 @@ export class Avatar {
     this.group.add(this.nameSprite);
   }
 
+  /** Shows a chat bubble above the head; it fades out and disappears after 15 seconds. A new message replaces the old one. */
+  say(text) {
+    this.clearBubble();
+    this.bubble = makeBubble(text);
+    this.bubble.position.y = this.nameSprite.position.y + 0.32;
+    this.bubbleT = BUBBLE_SECONDS;
+    this.group.add(this.bubble);
+  }
+
+  clearBubble() {
+    if (!this.bubble) return;
+    this.group.remove(this.bubble);
+    this.bubble.material.map.dispose();
+    this.bubble.material.dispose();
+    this.bubble = null;
+  }
+
   /** Kneeling on a cushion: thighs forward, shins folded back, hips drop to the heels. */
   setSeated(on) {
     this.seated = on;
@@ -317,6 +376,14 @@ export class Avatar {
 
   update(dt, moving) {
     const k = 1 - Math.exp(-dt * 10); // frame-rate independent easing
+    if (this.bubble) {
+      this.bubbleT -= dt;
+      if (this.bubbleT <= 0) this.clearBubble();
+      else {
+        this.bubble.material.opacity = Math.min(1, this.bubbleT); // fade over the last second
+        this.bubble.position.y = this.nameSprite.position.y + 0.32; // follows the name tag when kneeling
+      }
+    }
     this.clock += dt;
     this.sit += (this.sitTarget - this.sit) * k;
     this.amp += ((moving && !this.seated ? 1 : 0) - this.amp) * k;

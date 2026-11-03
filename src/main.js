@@ -169,6 +169,7 @@ function connect(name) {
     else if (m.t === 'name') remotes.get(m.id)?.avatar.setName(m.name);
     else if (m.t === 'seat') applySeat(m.id, m.i);
     else if (m.t === 'sitfail') flash('Chỗ này đã có người ngồi');
+    else if (m.t === 'chat') remotes.get(m.id)?.avatar.say(m.text);
     else if (m.t === 'count') $('count').textContent = m.n;
   };
   ws.onclose = () => { $('hint').textContent = 'Mất kết nối. Tải lại trang để vào lại.'; };
@@ -225,6 +226,7 @@ const send = (msg) => ws?.readyState === 1 && ws.send(JSON.stringify(msg));
 const keys = new Set();
 addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Enter' || e.code === 'NumpadEnter') { e.preventDefault(); keys.clear(); chatInput.focus(); return; } // Enter opens the chat box
   keys.add(e.code);
   if (e.code === 'KeyB') doAction('bow');
   if (e.code === 'KeyG') doAction('greet');
@@ -232,6 +234,26 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyE') toggleSit();
 });
 addEventListener('keyup', (e) => keys.delete(e.code));
+
+// Chat: Enter to open, Enter to send, Esc to cancel. Messages show above the sender's head for 15 seconds.
+const chatInput = $('chat');
+let lastChat = 0;
+function sendChat() {
+  const text = chatInput.value.replace(/\s+/g, ' ').trim().slice(0, 120);
+  chatInput.value = '';
+  chatInput.blur();
+  const now = performance.now();
+  if (!me || !text || now - lastChat < 800) return;
+  lastChat = now;
+  me.avatar.say(text);
+  send({ t: 'chat', text });
+}
+chatInput.addEventListener('keydown', (e) => {
+  if (e.isComposing) return; // Vietnamese IME uses Enter to commit a syllable
+  if (e.key === 'Enter') { e.preventDefault(); sendChat(); }
+  else if (e.key === 'Escape') chatInput.blur();
+});
+$('chatSend').onclick = sendChat;
 
 let bows = 0, sticksLit = 0;
 const bearingTo = (x, z, b) => Math.atan2(incense.spec(b).x - x, incense.spec(b).z - z); // yaw that faces burner b

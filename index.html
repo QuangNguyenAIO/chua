@@ -12,6 +12,11 @@
     #top b { font-size: 18px; }
     #prisonHud { display: none; top: 70px; left: 16px; padding: 10px 14px; font-size: 14px; line-height: 1.6;
                  background: #0007; border-radius: 12px; }
+    #chatbox { position: fixed; left: 16px; bottom: 20px; display: flex; gap: 6px; width: min(300px, 40vw); }
+    #chat { flex: 1; min-width: 0; padding: 10px 14px; border: 0; border-radius: 999px; font-size: 14px; background: #ffffffdd; color: #2a1c14; outline: none; }
+    #chat:focus { background: #fff; box-shadow: 0 0 0 2px #f2b616; }
+    #chatSend { padding: 10px 14px; font-size: 14px; }
+    @media (max-width: 900px) { #chatbox { bottom: 78px; width: calc(100vw - 32px); } }
     #hint { bottom: 86px; width: 100%; text-align: center; font-size: 13px; opacity: .8; }
     #bar { position: fixed; bottom: 20px; width: 100%; display: flex; gap: 10px; justify-content: center; }
     button { pointer-events: auto; border: 0; border-radius: 999px; padding: 12px 20px; font-size: 15px;
@@ -27,6 +32,7 @@
   <div id="top" class="hud"><b>山寺 TT PTPM</b><br />Đang online: <span id="count">1</span> · Lạy: <span id="bows">0</span>/108 · Nhang: <span id="sticks">0</span></div>
   <div id="prisonHud" class="hud"></div>
   <div id="hint" class="hud">WASD / chạm để di chuyển · E để ngồi lên đệm · kéo chuột để xoay · cuộn để zoom</div>
+  <div id="chatbox"><input id="chat" maxlength="120" placeholder="Nhấn Enter để chat…" autocomplete="off" /><button id="chatSend">Gửi</button></div>
   <div id="bar">
     <button id="bow">🙇 Lạy (B)</button>
     <button id="sit">🧘 Ngồi (E)</button>

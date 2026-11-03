@@ -73,6 +73,12 @@ wss.on('connection', (ws) => {
       broadcast({ t: 'move', id, x: me.x, z: me.z, ry: me.ry }, ws);
     } else if (m.t === 'act' && (m.a === 'bow' || m.a === 'greet' || m.a === 'incense')) {
       broadcast({ t: 'act', id, a: m.a }, ws);
+    } else if (m.t === 'chat') {
+      const text = String(m.text ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+      const now = Date.now();
+      if (!text || now - (me.lastChat || 0) < 800) return; // one message per 0.8s
+      me.lastChat = now;
+      broadcast({ t: 'chat', id, text }, ws);
     } else if (m.t === 'plant') {
       const now = Date.now();
       if (!Number.isInteger(m.b) || m.b < 0 || m.b >= BURNER_COUNT || now - (me.lastPlant || 0) < 3000) return; // one offering per 3s
