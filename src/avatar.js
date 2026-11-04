@@ -3,7 +3,7 @@ import * as THREE from 'three';
 const { lerp } = THREE.MathUtils;
 const flat = (color) => new THREE.MeshStandardMaterial({ color, flatShading: false, roughness: 0.8 });
 
-function label(text) {
+export function label(text) {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 64;
   const g = c.getContext('2d');
@@ -60,10 +60,10 @@ const FUR = {
 const HAIR = [0x6a3d1e, 0x2a1c14, 0xc4c4c4, 0xe0443c, 0xe8c070, 0x8a5a2a];
 const SKINS = [0xf0c8a0, 0xe6b48a, 0xd9a273];
 
-const BUBBLE_SECONDS = 15;
+export const BUBBLE_SECONDS = 15;
 
 /** Speech bubble texture: word-wrapped text (max 4 lines) in a rounded box with a small tail. */
-function makeBubble(text) {
+export function makeBubble(text) {
   const font = '30px system-ui, sans-serif', maxW = 420, pad = 22, lineH = 38, tail = 18;
   const c = document.createElement('canvas');
   let g = c.getContext('2d');

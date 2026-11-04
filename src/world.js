@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { inDogZone } from './dogzone.js';
 import { buddhaStatue, arhatStatue, maitreyaStatue } from './statues.js';
 
 // Vietnamese pagoda compound ("chùa"), laid out along a north-south axis:
@@ -102,6 +103,22 @@ function add(parent, geo, material, x = 0, y = 0, z = 0) {
   parent.add(m);
   return m;
 }
+/** Pushes a point (avatar of the given radius) out of walls, ponds and buildings. */
+export function collide(p, radius = 0.5) {
+  for (const o of OBSTACLES) {
+    if (o.r !== undefined) {
+      const dx = p.x - o.x, dz = p.z - o.z, min = o.r + radius, d = Math.hypot(dx, dz);
+      if (d < min) { const k = min / (d || 1); p.x = o.x + (d ? dx * k : min); p.z = o.z + (d ? dz * k : 0); }
+    } else {
+      const x0 = o.x0 - radius, x1 = o.x1 + radius, z0 = o.z0 - radius, z1 = o.z1 + radius;
+      if (p.x <= x0 || p.x >= x1 || p.z <= z0 || p.z >= z1) continue;
+      const push = [p.x - x0, x1 - p.x, p.z - z0, z1 - p.z];
+      const m = Math.min(...push);
+      if (m === push[0]) p.x = x0; else if (m === push[1]) p.x = x1; else if (m === push[2]) p.z = z0; else p.z = z1;
+    }
+  }
+}
+
 const walkable = (mesh) => { mesh.userData.walk = true; mesh.castShadow = false; return mesh; };
 const obsBox = (cx, cz, w, d) => OBSTACLES.push({ x0: cx - w / 2, x1: cx + w / 2, z0: cz - d / 2, z1: cz + d / 2 });
 const obsCircle = (x, z, r) => OBSTACLES.push({ x, z, r });
@@ -584,6 +601,7 @@ export function buildWorld(scene) {
     if (Math.abs(x) < 33 && z > -52 && z < 24) continue; // keep clear of the compound
     if (x > 30 && x < 104 && z > -44 && z < 16) continue; // ...and of the prison grounds and the road to it
     if (Math.abs(x) < 8 && z > 10) continue; // keep the road clear
+    if (inDogZone(x, z) || (x < -4 && z > 20 && z < 36)) continue; // dog district and the road leading to it
     tree(scene, x, z, 0.8 + Math.random() * 0.8);
   }
   for (let i = 0; i < 18; i++) {

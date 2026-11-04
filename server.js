@@ -51,12 +51,14 @@ const freeSeat = (id) => {
   for (const [i, who] of seats) if (who === id) { seats.delete(i); return true; }
   return false;
 };
+const ACTS = new Set(['bow', 'greet', 'incense', 'bark', 'wag', 'sniff', 'sniffbutt', 'pee', 'bite', 'dig', 'love', 'eat', 'shake']);
+const short = (v) => String(v ?? '').replace(/[^\w-]/g, '').slice(0, 12);
 const num = (v, lim) => (Number.isFinite(v) ? Math.max(-lim, Math.min(lim, v)) : 0);
 
 wss.on('connection', (ws) => {
   if (players.size >= MAX_PLAYERS) return ws.close(1013, 'full');
   const id = nextId++;
-  const me = { id, x: 0, z: 22, ry: Math.PI, hue: Math.random(), name: `Khách ${id}`, act: null };
+  const me = { id, x: 0, z: 22, ry: Math.PI, hue: Math.random(), name: `Khách ${id}`, act: null, y: 0, st: '', look: null };
   players.set(id, me);
   ws.pid = id;
 
@@ -70,8 +72,12 @@ wss.on('connection', (ws) => {
     try { m = JSON.parse(raw); } catch { return; }
     if (m.t === 'move') {
       me.x = num(m.x, 120); me.z = num(m.z, 120); me.ry = num(m.ry, 10);
-      broadcast({ t: 'move', id, x: me.x, z: me.z, ry: me.ry }, ws);
-    } else if (m.t === 'act' && (m.a === 'bow' || m.a === 'greet' || m.a === 'incense')) {
+      me.y = Math.max(-1, num(m.y, 4)); me.st = m.st === 'sleep' ? 'sleep' : '';
+      broadcast({ t: 'move', id, x: me.x, z: me.z, ry: me.ry, y: me.y, st: me.st }, ws);
+    } else if (m.t === 'look') { // dog breed and accessories, shown to everyone while the player is inside the dog district
+      me.look = { b: short(m.b), a: Array.isArray(m.a) ? m.a.slice(0, 8).map(short) : [] };
+      broadcast({ t: 'look', id, look: me.look }, ws);
+    } else if (m.t === 'act' && ACTS.has(m.a)) {
       broadcast({ t: 'act', id, a: m.a }, ws);
     } else if (m.t === 'chat') {
       const text = String(m.text ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);

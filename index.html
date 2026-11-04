@@ -26,6 +26,37 @@
     #start div { max-width: 360px; padding: 0 20px; }
     #start h1 { font-weight: 300; letter-spacing: .3em; margin: 0 0 8px; }
     #start input { padding: 10px 14px; border-radius: 999px; border: 0; font-size: 15px; text-align: center; margin: 14px 0; }
+    /* ---- dog world ---- */
+    #dogHud { display: none; top: 82px; left: 16px; width: 236px; font-size: 12px; line-height: 1.4; }
+    .dogTitle { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .dogClock { margin-top: 4px; font-size: 12px; }
+    .bar { position: relative; height: 17px; margin: 3px 0; background: #0008; border-radius: 9px; overflow: hidden; }
+    .bar i { position: absolute; inset: 0 auto 0 0; border-radius: 9px; transition: width .2s; }
+    .bar span { position: relative; z-index: 1; padding-left: 8px; font-size: 11px; line-height: 17px; white-space: nowrap; }
+    .bar.hp i { background: #d9445a; } .bar.food i { background: #e8913a; } .bar.water i { background: #3fa0e8; }
+    .bar.energy i { background: #8a6ad8; } .bar.stamina i { background: #3fb85f; } .bar.xp i { background: #c9a02c; }
+    .bar.mini { height: 5px; margin: 3px 0 0; } .bar.mini i { background: #7ad6a0; }
+    #dogQuests { display: none; top: 12px; right: 16px; width: 250px; font-size: 13px; }
+    #dogQuests .q { margin-top: 6px; padding: 6px 10px; background: #0007; border-radius: 10px; border-left: 3px solid #7ad6a0; }
+    #dogQuests .q.main { border-color: #f2b616; } #dogQuests .q.event { border-color: #e0455a; }
+    #dogQuests small { display: block; opacity: .8; font-size: 11px; line-height: 1.3; }
+    #dogToast { position: fixed; top: 12%; left: 50%; transform: translateX(-50%); width: min(520px, 90vw); text-align: center; pointer-events: none; }
+    #dogToast div { margin: 6px auto 0; padding: 8px 16px; width: fit-content; max-width: 100%; background: #000a; border-radius: 14px; font-size: 14px; animation: toast .3s; }
+    @keyframes toast { from { opacity: 0; transform: translateY(-8px); } }
+    #dogPrompt { display: none; position: fixed; bottom: 170px; left: 50%; transform: translateX(-50%); padding: 8px 18px; background: #000b; border: 2px solid #f2b616; border-radius: 999px; font-size: 15px; pointer-events: none; }
+    #dogBar { display: none; position: fixed; bottom: 20px; left: 340px; width: calc(100% - 360px); flex-wrap: wrap; gap: 8px; justify-content: center; }
+    #dogBar button { padding: 9px 14px; font-size: 13px; }
+    @media (max-width: 900px) { #dogBar { left: 8px; width: calc(100% - 16px); } #dogHud { width: 190px; } #dogQuests { width: 190px; } }
+    #dogMenu { display: none; z-index: 20; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(580px, 94vw); max-height: 78vh; overflow: auto;
+               background: #1d2a2af4; border-radius: 16px; padding: 12px 16px 16px; font-size: 14px; box-shadow: 0 10px 40px #000a; }
+    #dogMenu .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    #dogMenu .tabs button { padding: 7px 12px; font-size: 13px; } #dogMenu .tabs button.on { background: #f2b616; color: #2a1c14; }
+    #dogMenu .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px; margin: 5px 0; background: #ffffff12; border-radius: 10px; }
+    #dogMenu .row.sel { outline: 2px solid #f2b616; } #dogMenu small { opacity: .75; }
+    #dogMenu .row button { padding: 6px 14px; font-size: 13px; min-width: 62px; } #dogMenu button:disabled { opacity: .35; cursor: default; }
+    #dogMenu .help p { line-height: 1.5; margin: 6px 0; }
+    #dogFade { z-index: 30; position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .8s; } #dogFade.on { opacity: 1; }
+    #dogHurt { z-index: 25; position: fixed; inset: 0; pointer-events: none; opacity: 0; box-shadow: inset 0 0 120px 30px #e0202a; transition: opacity .25s; } #dogHurt.on { opacity: .85; }
   </style>
 </head>
 <body>
@@ -40,9 +71,31 @@
     <button id="incense">🪔 Thắp nhang (T)</button>
     <button id="mute">🔔 Âm thanh</button>
   </div>
+  <div id="dogHud" class="hud"></div>
+  <div id="dogQuests" class="hud"></div>
+  <div id="dogToast"></div>
+  <div id="dogPrompt"></div>
+  <div id="dogMenu"></div>
+  <div id="dogFade"></div>
+  <div id="dogHurt"></div>
+  <div id="dogBar">
+    <button data-key="KeyQ">🔊 Sủa (Q)</button>
+    <button data-key="KeyR">🐕 Vẫy đuôi (R)</button>
+    <button data-key="KeyV">👃 Đánh hơi (V)</button>
+    <button data-key="KeyB">🍑 Ngửi đít (B)</button>
+    <button data-key="KeyU">💦 Đái bậy (U)</button>
+    <button data-key="KeyC">🦷 Cắn (C)</button>
+    <button data-key="KeyX">⛏️ Đào (X)</button>
+    <button data-key="KeyM">💕 Giao phối (M)</button>
+    <button data-key="KeyZ">😴 Ngủ (Z)</button>
+    <button data-key="KeyF">🍖 Ăn/Uống (F)</button>
+    <button data-key="KeyP">🎒 Hồ sơ (P)</button>
+    <button id="dogMute">🔔 Âm thanh</button>
+  </div>
   <div id="start"><div>
     <h1>TT PTPM</h1>
     <p>Ngôi chùa trên núi. Hãy dừng lại một chút.</p>
+    <p style="font-size:13px;opacity:.75">Phía tây có <b>Thế giới chó</b> — bước vào cổng, bạn sẽ hóa thành chó 🐕</p>
     <input id="name" maxlength="16" placeholder="Tên của bạn" /><br />
     <button id="enter">Vào chùa</button>
   </div></div>

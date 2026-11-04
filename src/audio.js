@@ -74,3 +74,79 @@ export function moTap(vol = 1) {
     o.stop(t + 0.25);
   }
 }
+
+// ---------- dog world sounds (all synthesised) ----------
+
+function env(t, peak, dur) {
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  g.connect(master);
+  return g;
+}
+
+/** Short filtered noise burst; used for breath, splashes, munching and thunder. */
+function noise(t, dur, freq, peak, type = 'bandpass') {
+  const n = Math.floor(ctx.sampleRate * dur), buf = ctx.createBuffer(1, n, ctx.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  const src = ctx.createBufferSource(), f = ctx.createBiquadFilter();
+  src.buffer = buf; f.type = type; f.frequency.value = freq;
+  src.connect(f).connect(env(t, peak, dur));
+  src.start(t);
+}
+
+/** "Gâu!" – a falling sawtooth through a vowel-ish filter. `pitch` ~1 for a medium dog, lower for big ones. */
+export function bark(vol = 1, pitch = 1) {
+  if (!ctx || muted || vol <= 0.02) return;
+  const t = ctx.currentTime;
+  const o = ctx.createOscillator(), f = ctx.createBiquadFilter();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(420 * pitch, t);
+  o.frequency.exponentialRampToValueAtTime(190 * pitch, t + 0.16);
+  f.type = 'bandpass'; f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(500, t + 0.16); f.Q.value = 2.5;
+  o.connect(f).connect(env(t, 0.38 * vol, 0.2));
+  o.start(t); o.stop(t + 0.22);
+  noise(t, 0.08, 1800, 0.12 * vol);
+}
+
+export function growl(vol = 1) {
+  if (!ctx || muted || vol <= 0.02) return;
+  const t = ctx.currentTime, o = ctx.createOscillator(), lfo = ctx.createOscillator(), lg = ctx.createGain();
+  o.type = 'sawtooth'; o.frequency.value = 70;
+  lfo.frequency.value = 28; lg.gain.value = 18; lfo.connect(lg).connect(o.frequency);
+  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 420;
+  o.connect(f).connect(env(t, 0.3 * vol, 0.9));
+  o.start(t); lfo.start(t); o.stop(t + 0.95); lfo.stop(t + 0.95);
+}
+
+export function yelp(vol = 1) {
+  if (!ctx || muted || vol <= 0.02) return;
+  const t = ctx.currentTime, o = ctx.createOscillator();
+  o.type = 'triangle';
+  o.frequency.setValueAtTime(900, t);
+  o.frequency.exponentialRampToValueAtTime(1500, t + 0.07);
+  o.frequency.exponentialRampToValueAtTime(600, t + 0.28);
+  o.connect(env(t, 0.3 * vol, 0.3));
+  o.start(t); o.stop(t + 0.32);
+}
+
+export function sfx(kind, vol = 1) {
+  if (!ctx || muted || vol <= 0.02) return;
+  const t = ctx.currentTime;
+  if (kind === 'munch') for (let i = 0; i < 4; i++) noise(t + i * 0.16, 0.07, 1200 + i * 150, 0.2 * vol);
+  else if (kind === 'splash') noise(t, 0.35, 700, 0.3 * vol);
+  else if (kind === 'dig') for (let i = 0; i < 5; i++) noise(t + i * 0.22, 0.12, 380, 0.25 * vol, 'lowpass');
+  else if (kind === 'sniff') for (let i = 0; i < 4; i++) noise(t + i * 0.18, 0.1, 3200, 0.1 * vol, 'highpass');
+  else if (kind === 'thunder') noise(t, 2.6, 160, 0.9 * vol, 'lowpass');
+  else if (kind === 'poof') noise(t, 0.4, 900, 0.3 * vol);
+  else if (kind === 'honk') for (const f of [349, 440]) {
+    const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = f;
+    const f2 = ctx.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = 900;
+    o.connect(f2).connect(env(t, 0.12 * vol, 0.45)); o.start(t); o.stop(t + 0.5);
+  }
+  else if (kind === 'coin' || kind === 'level') for (const [i, f] of (kind === 'coin' ? [[0, 988], [1, 1319]] : [[0, 523], [1, 659], [2, 784], [3, 1046]])) {
+    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+    o.connect(env(t + i * 0.09, 0.2 * vol, 0.3)); o.start(t + i * 0.09); o.stop(t + i * 0.09 + 0.35);
+  }
+}
