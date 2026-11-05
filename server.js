@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
+import { createMeetings } from './meetings.js';
 
 const PORT = process.env.PORT || 3001;
 const DIST = join(fileURLToPath(new URL('.', import.meta.url)), 'dist');
@@ -30,8 +31,10 @@ const http = createServer(async (req, res) => {
   }
 });
 
-const wss = new WebSocketServer({ server: http, path: '/ws' });
+const wss = new WebSocketServer({ server: http, path: '/ws', maxPayload: 3 * 1024 * 1024 });
 const players = new Map();
+const socks = new Map(); // player id -> socket
+
 const seats = new Map(); // cushion index -> player id
 const SEAT_COUNT = 28;
 const BURNER_COUNT = 2; // courtyard censer + hall censer
@@ -51,6 +54,11 @@ const freeSeat = (id) => {
   for (const [i, who] of seats) if (who === id) { seats.delete(i); return true; }
   return false;
 };
+const meetings = createMeetings({
+  sendTo: (id, msg) => { const ws = socks.get(id); if (ws) send(ws, msg); },
+  setRoom: (id, code) => { const p = players.get(id); if (p) { p.room = code; broadcast({ t: 'room', id, code }); } },
+  dataDir: process.env.DATA_DIR || join(fileURLToPath(new URL('.', import.meta.url)), 'data'),
+});
 const ACTS = new Set(['bow', 'greet', 'incense', 'bark', 'wag', 'sniff', 'sniffbutt', 'pee', 'bite', 'dig', 'love', 'eat', 'shake']);
 const short = (v) => String(v ?? '').replace(/[^\w-]/g, '').slice(0, 12);
 const num = (v, lim) => (Number.isFinite(v) ? Math.max(-lim, Math.min(lim, v)) : 0);
@@ -58,9 +66,11 @@ const num = (v, lim) => (Number.isFinite(v) ? Math.max(-lim, Math.min(lim, v)) :
 wss.on('connection', (ws) => {
   if (players.size >= MAX_PLAYERS) return ws.close(1013, 'full');
   const id = nextId++;
-  const me = { id, x: 0, z: 22, ry: Math.PI, hue: Math.random(), name: `Khách ${id}`, act: null, y: 0, st: '', look: null };
+  const me = { id, x: 0, z: 22, ry: Math.PI, hue: Math.random(), name: `Khách ${id}`, act: null, y: 0, st: '', look: null, room: '' };
   players.set(id, me);
   ws.pid = id;
+  socks.set(id, ws);
+  meetings.hello(id, '', me.name);
 
   prune();
   send(ws, { t: 'init', id, players: [...players.values()], seats: [...seats], sticks: sticks.map((s) => ({ b: s.b, age: Date.now() - s.t })) });
@@ -70,6 +80,8 @@ wss.on('connection', (ws) => {
   ws.on('message', (raw) => {
     let m;
     try { m = JSON.parse(raw); } catch { return; }
+    if (m.t === 'm' && m.k) return meetings.message(id, m);
+    if (m.t === 'hello') return meetings.hello(id, m.tok, me.name);
     if (m.t === 'move') {
       me.x = num(m.x, 120); me.z = num(m.z, 120); me.ry = num(m.ry, 10);
       me.y = Math.max(-1, num(m.y, 4)); me.st = m.st === 'sleep' ? 'sleep' : '';
@@ -104,11 +116,14 @@ wss.on('connection', (ws) => {
       if (freeSeat(id)) { broadcast({ t: 'seat', id, i: -1 }, ws); send(ws, { t: 'seat', id, i: -1 }); }
     } else if (m.t === 'name' && typeof m.name === 'string') {
       me.name = m.name.slice(0, 16) || me.name;
+      meetings.rename(id, me.name);
       broadcast({ t: 'name', id, name: me.name }, ws);
     }
   });
 
   ws.on('close', () => {
+    meetings.close(id);
+    socks.delete(id);
     freeSeat(id);
     players.delete(id);
     broadcast({ t: 'leave', id });

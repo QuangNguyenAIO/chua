@@ -601,6 +601,7 @@ export function buildWorld(scene) {
     if (Math.abs(x) < 33 && z > -52 && z < 24) continue; // keep clear of the compound
     if (x > 30 && x < 104 && z > -44 && z < 16) continue; // ...and of the prison grounds and the road to it
     if (Math.abs(x) < 8 && z > 10) continue; // keep the road clear
+    if (Math.abs(x) < 30 && z > 40) continue; // meeting building and its approach
     if (inDogZone(x, z) || (x < -4 && z > 20 && z < 36)) continue; // dog district and the road leading to it
     tree(scene, x, z, 0.8 + Math.random() * 0.8);
   }

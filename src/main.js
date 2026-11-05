@@ -6,6 +6,9 @@ import { buildDogWorld } from './dogworld.js';
 import { createDogGame } from './dogplay.js';
 import { DogAvatar } from './dogavatar.js';
 import { inDogZone } from './dogzone.js';
+import { buildMeetRoom } from './meetroom.js';
+import { createMeeting } from './meeting.js';
+import { seatPos } from './meetzone.js';
 import { findPath } from './nav.js';
 import { Avatar } from './avatar.js';
 import { startAudio, bell, toggleMute, moTap, bark, sfx } from './audio.js';
@@ -25,6 +28,7 @@ const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 40
 const ground = buildWorld(scene);
 const prison = buildPrison(scene); // after the world so its obstacles join the same list
 const dogWorld = buildDogWorld(scene, camera); // needs the world's lights, so it comes last
+const meetRoom = buildMeetRoom(scene, camera);
 
 // Incense: every burner starts with a few ever-burning sticks so the smoke is always there; visitors add more.
 const incense = new Incense(scene, BURNERS);
@@ -124,7 +128,7 @@ function makeActor(p, name) {
   human.group.rotation.y = p.ry;
   scene.add(human.group);
   const look = p.look ? { breed: p.look.b || 'ta', acc: p.look.a || [] } : { breed: 'ta', acc: [] };
-  return { human, avatar: human, dogAv: null, form: 'human', name, look, hue: p.hue };
+  return { human, avatar: human, dogAv: null, form: 'human', name, look, hue: p.hue, room: p.room || '' };
 }
 
 function setForm(who, toDog) {
@@ -154,14 +158,25 @@ function renameActor(who, name) {
   who.dogAv?.setName(name);
 }
 
+let lastPos = null; // where the player stood when the connection dropped
 function connect(name) {
   ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
-  ws.onopen = () => ws.send(JSON.stringify({ t: 'name', name }));
+  ws.onopen = () => { ws.send(JSON.stringify({ t: 'hello', tok: meeting.tok })); ws.send(JSON.stringify({ t: 'name', name })); };
   ws.onmessage = ({ data }) => {
     const m = JSON.parse(data);
     if (m.t === 'init') {
+      if (me) { // reconnected: drop the stale avatars of the previous session
+        if (me.form === 'dog') dogGame.end();
+        scene.remove(me.avatar.group);
+        for (const r of remotes.values()) scene.remove(r.avatar.group);
+        remotes.clear(); taken.clear(); taken.set(ABBOT_SEAT, -1);
+      }
       const self = m.players.find((p) => p.id === m.id);
+      if (lastPos) Object.assign(self, lastPos);
       me = { id: m.id, seat: -1, ...makeActor(self, name || self.name) };
+      sentState = '';
+      meeting.afterReconnect();
+      meeting.onOpen();
       me.human.onPlant = () => { bell(660); send({ t: 'plant', b: me.incenseB }); };
       for (const s of m.sticks || []) incense.addStick(s.b, s.age / 1000);
       for (const p of m.players) if (p.id !== m.id) addRemote(p);
@@ -192,10 +207,19 @@ function connect(name) {
     else if (m.t === 'name') { const r = remotes.get(m.id); if (r) renameActor(r, m.name); }
     else if (m.t === 'seat') applySeat(m.id, m.i);
     else if (m.t === 'sitfail') flash('Chỗ này đã có người ngồi');
-    else if (m.t === 'chat') remotes.get(m.id)?.avatar.say(m.text);
+    else if (m.t === 'chat') { const r = remotes.get(m.id); if (r && !r.room && !meeting.inRoom) r.avatar.say(m.text); }
+    else if (m.t === 'room') { const r = remotes.get(m.id); if (r) r.room = m.code; }
+    else if (m.t === 'm') meeting.onMsg(m);
     else if (m.t === 'count') $('count').textContent = m.n;
   };
-  ws.onclose = () => { $('hint').textContent = 'Mất kết nối. Tải lại trang để vào lại.'; };
+  ws.onclose = () => {
+    if (!me) return;
+    const p = me.avatar.group.position;
+    lastPos = { x: p.x, z: p.z, ry: me.avatar.group.rotation.y };
+    meeting.reconnect();
+    $('hint').textContent = 'Mất kết nối. Đang kết nối lại…';
+    setTimeout(() => connect(name), 2000);
+  };
 }
 
 function flash(text) {
@@ -262,12 +286,35 @@ const dogGame = createDogGame({
   remoteDogs: () => [...remotes.values()].filter((r) => r.form === 'dog').map((r) => ({ x: r.avatar.group.position.x, z: r.avatar.group.position.z, ry: r.avatar.group.rotation.y })),
 });
 
+const actorOf = (pid) => (pid === me?.id ? me : remotes.get(pid));
+const meeting = createMeeting({
+  room: meetRoom, send, actor: actorOf, toast: (t) => flash(t),
+  place(x, z, yaw, view) {
+    if (!me) return;
+    if (view) { // entering a meeting: look down at the room from across the table
+      Object.assign(cam, { yaw, pitch: 1.0, dist: 11 });
+      Object.assign(camS, { yaw, pitch: 1.0, dist: 11 });
+    }
+    const g = me.avatar.group;
+    g.position.set(x, floorY(x, z), z); g.rotation.y = yaw;
+    route = []; vel.set(0, 0, 0); sentState = '';
+    camS.x = x; camS.z = z;
+  },
+  onState(code) {
+    if (me) me.room = code;
+    $('chat').placeholder = code ? 'Chat trong phòng họp (Enter)…' : 'Nhấn Enter để chat…';
+    $('bar').style.display = code ? 'none' : 'flex';
+    $('hint').textContent = code ? 'E ngồi/đứng · M micro · H giơ tay · kéo chuột để xoay · cuộn để zoom' : 'WASD / chạm để di chuyển · E để ngồi lên đệm · kéo chuột để xoay · cuộn để zoom';
+  },
+});
+
 // ---------- input ----------
 const keys = new Set();
 addEventListener('keydown', (e) => {
-  if (e.target.tagName === 'INPUT') return;
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
   if (e.code === 'Enter' || e.code === 'NumpadEnter') { e.preventDefault(); keys.clear(); chatInput.focus(); return; } // Enter opens the chat box
   keys.add(e.code);
+  if (me && me.form !== 'dog' && !e.repeat && meeting.key(e.code)) { e.preventDefault(); return; }
   if (me?.form === 'dog') { // dog controls: see dogplay.js
     if (e.code === 'Space') e.preventDefault();
     if (!e.repeat && dogGame.key(e.code)) e.preventDefault();
@@ -291,7 +338,7 @@ function sendChat() {
   if (!me || !text || now - lastChat < 800) return;
   lastChat = now;
   me.avatar.say(text);
-  send({ t: 'chat', text });
+  if (meeting.inRoom) meeting.sendChat(text); else send({ t: 'chat', text });
 }
 chatInput.addEventListener('keydown', (e) => {
   if (e.isComposing) return; // Vietnamese IME uses Enter to commit a syllable
@@ -328,6 +375,7 @@ $('bow').onclick = () => doAction('bow');
 $('greet').onclick = () => doAction('greet');
 $('incense').onclick = () => doAction('incense');
 $('sit').onclick = toggleSit;
+$('mtBtn').onclick = () => meeting.openLobby();
 const toggleSound = () => { const label = toggleMute() ? '🔕 Im lặng' : '🔔 Âm thanh'; $('mute').textContent = label; $('dogMute').textContent = label; };
 $('mute').onclick = toggleSound;
 $('dogMute').onclick = toggleSound;
@@ -360,6 +408,7 @@ el.addEventListener('pointerup', (e) => {
     if (hit) {
       const p = me.avatar.group.position;
       if (me.seat >= 0) stand();
+      meeting.stand();
       route = findPath(p.x, p.z, hit.point.x, hit.point.z);
     }
   }
@@ -383,9 +432,10 @@ function updateMe(dt) {
     0,
     (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) - (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0),
   );
+  const chair = dog ? null : meeting.mySeat();
   if (dir.lengthSq() > 0) {
     route = [];
-    if (!dog) stand();
+    if (!dog) { stand(); if (chair) meeting.stand(); }
     dir.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), camS.yaw);
   } else if (route.length && me.seat < 0) {
     const w = route[0];
@@ -397,7 +447,7 @@ function updateMe(dt) {
   const p = a.group.position;
   if (dog) dogGame.control(dt, dir, keys); // dogs have their own physics: run, jump, swim, stats
   else {
-    const canMove = !a.action && me.seat < 0;
+    const canMove = !a.action && me.seat < 0 && !chair;
     const want = canMove ? dir.multiplyScalar(SPEED) : dir.set(0, 0, 0);
     vel.lerp(want, ease(dt, canMove && want.lengthSq() > 0 ? 9 : 12));
     const speed = vel.length();
@@ -408,8 +458,9 @@ function updateMe(dt) {
       collide(p);
     }
     if (moving) a.group.rotation.y = lerpAngle(a.group.rotation.y, Math.atan2(vel.x, vel.z), ease(dt, 12));
+    if (chair) { p.x = chair.x; p.z = chair.z; a.group.rotation.y = chair.yaw; vel.set(0, 0, 0); }
     p.y += (floorY(p.x, p.z) + (me.seat >= 0 ? SEAT_Y : 0) - p.y) * ease(dt, 12);
-    a.update(dt, moving);
+    a.update(dt, moving && !chair);
   }
 
   // Walking into the dog district turns the visitor into a dog; walking out turns them back.
@@ -459,9 +510,13 @@ function lerpAngle(a, b, t) {
 function updateRemotes(dt) {
   for (const r of remotes.values()) {
     setForm(r, inDogZone(r.tx, r.tz));
+    const inMine = (r.room || '') === meeting.code;
+    const ms = inMine && meeting.code ? meeting.seatOf(r.id) : -1;
+    if (ms >= 0) { const s = seatPos(ms); Object.assign(r, { tx: s.x, tz: s.z, try: s.yaw }); }
+    r.avatar.group.visible = inMine; // people in another meeting room (or outside it) are not shown
     const g = r.avatar.group;
     const dx = r.tx - g.position.x, dz = r.tz - g.position.z;
-    const moving = Math.hypot(dx, dz) > 0.05 && r.seat < 0 && r.st !== 'sleep';
+    const moving = Math.hypot(dx, dz) > 0.05 && r.seat < 0 && r.st !== 'sleep' && ms < 0;
     g.position.x += dx * ease(dt, 10);
     g.position.z += dz * ease(dt, 10);
     if (r.form === 'dog') { // dogs follow the sender's height (jumps, swimming) and pose
@@ -490,6 +545,7 @@ function tick() {
   }
   dogWorld.update(dt, { pos: me ? me.avatar.group.position : null, player: me?.form === 'dog' ? dogGame.info : null });
   dogGame.update(dt);
+  meeting.update(dt, me ? me.avatar.group.position : null);
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }

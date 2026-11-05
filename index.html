@@ -57,6 +57,53 @@
     #dogMenu .help p { line-height: 1.5; margin: 6px 0; }
     #dogFade { z-index: 30; position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .8s; } #dogFade.on { opacity: 1; }
     #dogHurt { z-index: 25; position: fixed; inset: 0; pointer-events: none; opacity: 0; box-shadow: inset 0 0 120px 30px #e0202a; transition: opacity .25s; } #dogHurt.on { opacity: .85; }
+    /* ---- meeting room ---- */
+    #mt { font-size: 14px; }
+    #mt button, #mt select, #mt input, #mt textarea { font: inherit; }
+    #mt button { padding: 7px 12px; font-size: 13px; }
+    #mt button.on { background: #f2b616; color: #2a1c14; }
+    #mt button:disabled { opacity: .4; cursor: default; }
+    #mt input, #mt select, #mt textarea { padding: 7px 10px; border: 0; border-radius: 8px; background: #fff; color: #222; min-width: 0; box-sizing: border-box; }
+    #mt textarea { width: 100%; resize: vertical; } #mt input[type=checkbox], #mt input[type=radio] { padding: 0; }
+    #mt code { background: #0006; padding: 1px 6px; border-radius: 6px; letter-spacing: .08em; }
+    .mt-modal { z-index: 40; position: fixed; inset: 0; background: #000a; display: grid; place-items: center; }
+    .mt-modal[hidden], #mtTop[hidden], #mtSide[hidden], #mtDock[hidden], #mtEmo[hidden] { display: none !important; }
+    .mt-box { width: min(680px, 94vw); max-height: 88vh; overflow: auto; background: #1d2a2af8; border-radius: 16px; padding: 12px 16px 16px; box-shadow: 0 10px 40px #000a; }
+    .mt-box.wide { width: min(900px, 96vw); } .mt-box h3 { margin: 4px 0 8px; }
+    .mt-head { display: flex; justify-content: space-between; align-items: center; }
+    .mt-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 10px; }
+    .mt-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: end; margin: 6px 0; } .mt-row > input, .mt-row > select { flex: 1; }
+    .mt-form label { display: block; margin: 6px 0; font-size: 12px; opacity: .95; flex: 1; } .mt-form label input, .mt-form label select, .mt-form label textarea { display: block; width: 100%; margin-top: 3px; }
+    .mt-check { display: flex !important; gap: 6px; align-items: center; } .mt-primary { background: #f2b616 !important; color: #2a1c14 !important; font-weight: 600; }
+    .mt-danger { background: #d9445a !important; color: #fff !important; }
+    .mt-card { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; margin: 5px 0; background: #ffffff14; border-radius: 10px; }
+    .mt-card.col { display: block; } .mt-card.cur { outline: 2px solid #f2b616; } .mt-card small, .mt-small { opacity: .75; font-size: 12px; }
+    .mt-acts { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; } .mt-acts select { padding: 4px; }
+    .mt-chip { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: #ffffff22; }
+    .mt-chip.active { background: #2e9b57; } .mt-chip.waiting { background: #c98a1b; } .mt-chip.scheduled { background: #3f78c4; }
+    .done { text-decoration: line-through; opacity: .6; }
+    .mt-cal { margin-bottom: 8px; } .mt-cal div { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center; }
+    .mt-cal i { font-style: normal; padding: 4px 0; border-radius: 6px; background: #ffffff10; position: relative; } .mt-cal i.h { background: none; opacity: .6; }
+    .mt-cal i.today { outline: 2px solid #f2b616; } .mt-cal u { position: absolute; left: 50%; bottom: 1px; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: #5fd38a; }
+    .mt-meter { display: inline-block; width: 160px; height: 10px; background: #0006; border-radius: 6px; vertical-align: middle; overflow: hidden; } .mt-meter i { display: block; height: 100%; background: #5fd38a; width: 0; }
+    #mtToast { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 35; width: min(480px, 92vw); pointer-events: none; text-align: center; }
+    #mtToast div { margin: 4px auto 0; padding: 6px 14px; width: fit-content; background: #000b; border-radius: 12px; animation: toast .3s; } #mtToast .sys { opacity: .8; font-size: 12px; }
+    #mtTop { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 15; padding: 7px 14px; background: #1d2a2ae8; border-radius: 999px; white-space: nowrap; max-width: 96vw; overflow: hidden; }
+    #mtTop #mtTimer { margin: 0 8px; font-variant-numeric: tabular-nums; }
+    #mtDock { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 15; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center; padding: 8px 12px; background: #1d2a2ae8; border-radius: 18px; max-width: 96vw; }
+    #mtDock button { position: relative; font-size: 17px !important; padding: 6px 11px !important; } #mtDock #mtVol { width: 70px; padding: 0; }
+    #mtEmo { display: inline-flex; gap: 4px; }
+    .mt-badge { position: absolute; top: -6px; right: -4px; font-size: 10px; background: #e0455a; color: #fff; border-radius: 999px; padding: 0 5px; }
+    #mtSide { position: fixed; top: 0; right: 0; bottom: 0; width: min(380px, 100vw); z-index: 18; background: #1d2a2af4; padding: 10px 14px 80px; overflow: auto; box-shadow: -6px 0 24px #0008; box-sizing: border-box; }
+    #mtSide.wide { width: min(980px, 100vw); }
+    #mtSide canvas { width: 100%; background: #fff; border-radius: 8px; touch-action: none; display: block; } #mtBoard { cursor: crosshair; }
+    .mt-msg { margin: 6px 0; padding: 5px 10px; background: #ffffff12; border-radius: 10px; word-break: break-word; } .mt-msg.me { background: #3f78c455; } .mt-msg.dm { outline: 1px dashed #f2b616; } .mt-msg a { cursor: pointer; text-decoration: underline; }
+    #mtChatList { max-height: calc(100vh - 230px); overflow: auto; }
+    .mt-tools { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-bottom: 8px; } .mt-sw { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #fff8; cursor: pointer; } .mt-sw.on { border-color: #f2b616; transform: scale(1.2); }
+    .mt-opt { display: flex; gap: 8px; align-items: center; margin: 6px 0 2px; } .mt-bar { position: relative; flex: 1; background: #ffffff18; border-radius: 8px; overflow: hidden; padding: 6px 10px; } .mt-bar i { position: absolute; inset: 0 auto 0 0; background: #3fa0e8aa; } .mt-bar span { position: relative; }
+    .mt-doc { background: #fff; color: #222; border-radius: 10px; padding: 12px 18px; } .mt-doc table { width: 100%; border-collapse: collapse; } .mt-doc th, .mt-doc td { border: 1px solid #bbb; padding: 4px 8px; text-align: left; }
+    #mtWait .mt-box { text-align: center; }
+    @media (max-width: 900px) { #mtTop { font-size: 12px; } #mtDock { bottom: 8px; } }
   </style>
 </head>
 <body>
@@ -69,6 +116,7 @@
     <button id="sit">🧘 Ngồi (E)</button>
     <button id="greet">🙏 Chào (G)</button>
     <button id="incense">🪔 Thắp nhang (T)</button>
+    <button id="mtBtn">🏢 Phòng họp (H)</button>
     <button id="mute">🔔 Âm thanh</button>
   </div>
   <div id="dogHud" class="hud"></div>

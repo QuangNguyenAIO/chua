@@ -449,7 +449,20 @@ export class Avatar {
     if (this.chanting && !this.action) this.poseChant();
     if (this.tail) this.tail.rotation.z = Math.sin(this.clock * (this.amp > 0.3 ? 8 : 3.5)) * (this.kind === 'dog' ? 0.5 : 0.35); // wag / sway
     this.mouth.scale.y = this.chanting ? 1 + 2.2 * Math.abs(Math.sin(this.clock * 7)) : 1;
-    if (this.pose) this.applyPose();
+    if (this.pose || this.chair || this.gest) this.applyPose();
+  }
+
+  /** Sitting on a chair at a table (meeting room): thighs forward, forearms resting on the table. */
+  setChair(on) {
+    this.chair = !!on;
+    this.nameSprite.position.y = on ? 1.95 : 2.5;
+  }
+
+  /** Meeting gesture: 'hand' (raised until cleared), or a timed 'wave' | 'nod' | 'shake' | 'clap' | 'point'. */
+  setGesture(g, seconds = 3) {
+    this.gest = g || null;
+    this.gestT = g === 'hand' ? Infinity : seconds;
+    this.gestAt = this.clock;
   }
 
   /** Name of a prison activity pose, or null for normal behaviour. See applyPose(). */
@@ -461,6 +474,7 @@ export class Avatar {
   /** Overrides arms, legs and torso for scripted prison activities. Runs after the normal pose so it wins. */
   applyPose() {
     const c = this.clock, [L, R] = this.arms;
+    if (this.gest && c - this.gestAt > this.gestT) this.gest = null;
     const arm = (a, sx, sz, ex, ez = 0) => { a.shoulder.rotation.set(sx, 0, sz); a.elbow.rotation.set(ex, 0, ez); };
     const talk = () => { this.mouth.scale.y = 1 + 2 * Math.abs(Math.sin(c * 9)); };
     const sit = (hipY) => { // thighs forward, shins straight down: on a bench, chair or toilet
@@ -468,6 +482,20 @@ export class Avatar {
       this.hips.position.z = 0;
       for (const l of this.legs) { l.hip.rotation.set(-1.5, 0, l.side * 0.05); l.knee.rotation.set(1.5, 0, 0); }
     };
+    if (this.chair && !this.pose) {
+      sit(0.6);
+      arm(L, -0.75, -0.08, -0.95); arm(R, -0.75, 0.08, -0.95);
+      this.upper.rotation.x = 0.05;
+    }
+    if (this.gest) {
+      const u = c - this.gestAt;
+      if (this.gest === 'hand') { arm(R, -2.9, -0.1, -0.15); this.mouth.scale.y = 1; }
+      else if (this.gest === 'wave') arm(R, -2.6, -0.2 - 0.3 * Math.sin(u * 9), -0.4 + 0.5 * Math.sin(u * 9));
+      else if (this.gest === 'nod') this.head.rotation.x = 0.3 * Math.sin(u * 7);
+      else if (this.gest === 'shake') this.head.rotation.y = 0.5 * Math.sin(u * 8);
+      else if (this.gest === 'clap') { const k = Math.abs(Math.sin(u * 9)); for (const a of [L, R]) arm(a, -1.2, -a.side * (0.55 - 0.45 * k), -1.5); }
+      else if (this.gest === 'point') arm(R, -1.6, 0.1, -0.1);
+    }
     switch (this.pose) {
       case 'punch': { // boxing stance, fists trading blows
         for (const [a, ph] of [[R, 0], [L, Math.PI]]) {
