@@ -4,6 +4,7 @@ import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { createMeetings } from './meetings.js';
+import { createTennis } from './tennis.js';
 
 const PORT = process.env.PORT || 3001;
 const DIST = join(fileURLToPath(new URL('.', import.meta.url)), 'dist');
@@ -59,6 +60,11 @@ const meetings = createMeetings({
   setRoom: (id, code) => { const p = players.get(id); if (p) { p.room = code; broadcast({ t: 'room', id, code }); } },
   dataDir: process.env.DATA_DIR || join(fileURLToPath(new URL('.', import.meta.url)), 'data'),
 });
+const tennis = createTennis({
+  players,
+  sendTo: (id, msg) => { const ws = socks.get(id); if (ws && ws.readyState === 1) ws.send(typeof msg === 'string' ? msg : JSON.stringify(msg)); },
+});
+setInterval(tennis.tick, 16);
 const ACTS = new Set(['bow', 'greet', 'incense', 'bark', 'wag', 'sniff', 'sniffbutt', 'pee', 'bite', 'dig', 'love', 'eat', 'shake']);
 const short = (v) => String(v ?? '').replace(/[^\w-]/g, '').slice(0, 12);
 const num = (v, lim) => (Number.isFinite(v) ? Math.max(-lim, Math.min(lim, v)) : 0);
@@ -81,6 +87,7 @@ wss.on('connection', (ws) => {
     let m;
     try { m = JSON.parse(raw); } catch { return; }
     if (m.t === 'm' && m.k) return meetings.message(id, m);
+    if (typeof m.t === 'string' && m.t.startsWith('tn_')) return tennis.message(id, m);
     if (m.t === 'hello') return meetings.hello(id, m.tok, me.name);
     if (m.t === 'move') {
       me.x = num(m.x, 120); me.z = num(m.z, 120); me.ry = num(m.ry, 10);
@@ -123,6 +130,7 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     meetings.close(id);
+    tennis.leave(id);
     socks.delete(id);
     freeSeat(id);
     players.delete(id);

@@ -318,6 +318,22 @@ export class Avatar {
       part(this.incenseProp, new THREE.SphereGeometry(0.026, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff7a2a }), i * 0.035 + i * -0.015, 0.47, 0);
     }
     this.incenseProp.visible = false;
+    // Tennis racket: held in the right hand while the player has a seat on the court (see setRacket / swing)
+    this.racket = joint(this.arms[1].hand, 0, -0.04, 0.03);
+    {
+      const rk = joint(this.racket);
+      rk.rotation.set(Math.PI / 2, 0, 0); // handle points forward, strings face sideways
+      part(rk, new THREE.CylinderGeometry(0.02, 0.02, 0.3, 8), flat(0x1c1c1c), 0, 0.1, 0);
+      part(rk, new THREE.CylinderGeometry(0.008, 0.008, 0.18, 6), flat(0xdddddd), 0, 0.34, 0);
+      const ring = part(rk, new THREE.TorusGeometry(0.15, 0.015, 6, 18), flat(0xd93a2a), 0, 0.57, 0);
+      ring.rotation.y = Math.PI / 2; ring.scale.y = 1.25;
+      const net = new THREE.Mesh(new THREE.CircleGeometry(0.15, 14), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, side: THREE.DoubleSide }));
+      net.rotation.y = Math.PI / 2; net.scale.y = 1.25; net.position.y = 0.57;
+      rk.add(net);
+    }
+    this.racket.visible = false;
+    this.racketOn = false;
+    this.swingT = -1;
     this.nameSprite = label(name);
     if (chibi) this.nameSprite.material.depthTest = true; // residents' names are hidden by walls instead of showing through them
     this.group.add(this.nameSprite);
@@ -364,6 +380,37 @@ export class Avatar {
     this.seated = on;
     this.sitTarget = on ? 1 : 0;
     this.nameSprite.position.y = on ? 1.75 : 2.5;
+  }
+
+  /** Holds a tennis racket (ready stance) or puts it away. */
+  setRacket(on) { this.racketOn = !!on; this.racket.visible = !!on; if (!on) this.swingT = -1; }
+
+  /** One tennis stroke: 'f' forehand, 'b' backhand, 'v' volley, 's' smash/serve, 'l' lob, 'd' drop shot. */
+  swing(kind = 'f') { this.swingKind = kind; this.swingT = 0; }
+
+  /** Tennis stance and strokes; runs after the normal pose so the arms and torso are overridden. */
+  poseRacket(dt) {
+    const [L, R] = this.arms;
+    L.shoulder.rotation.set(-0.5, 0, -0.35); L.elbow.rotation.set(-0.9, 0, 0);
+    R.shoulder.rotation.set(-0.75, 0, 0.12); R.elbow.rotation.set(-0.95, 0, 0);
+    if (this.swingT < 0) return;
+    this.swingT += dt;
+    const u = Math.min(this.swingT / 0.55, 1), k = this.swingKind;
+    const wind = u < 0.3 ? u / 0.3 : 1 - (u - 0.3) / 0.7; // 0 -> 1 backswing, then released
+    const fwd = u < 0.3 ? 0 : Math.sin(Math.min(1, (u - 0.3) / 0.35) * Math.PI / 2) * (1 - Math.max(0, (u - 0.7) / 0.3) * 0.6);
+    if (k === 's') { // overhead: racket cocked behind the head, then thrown up and over
+      R.shoulder.rotation.set(-2.2 - 0.5 * fwd + 0.5 * wind, 0, 0.2);
+      R.elbow.rotation.set(-1.6 * wind + 0.2 * fwd, 0, 0);
+      L.shoulder.rotation.set(-2.4 * (1 - fwd), 0, -0.3);
+      this.upper.rotation.x = -0.25 * wind + 0.35 * fwd;
+    } else {
+      const back = k === 'b' ? -1 : 1; // backhand swings across the other way
+      R.shoulder.rotation.set(-1.0, 0, back * (0.35 + 1.3 * wind - 1.6 * fwd));
+      R.elbow.rotation.set(-0.5 - 0.4 * (1 - fwd), 0, 0);
+      this.upper.rotation.y = back * (-0.7 * wind + 0.8 * fwd);
+      this.upper.rotation.x = k === 'd' ? 0.2 : 0;
+    }
+    if (u >= 1) this.swingT = -1;
   }
 
   /** Starts 'bow', 'greet' or 'incense'. Returns false if another action is still playing. */
@@ -450,6 +497,7 @@ export class Avatar {
     if (this.tail) this.tail.rotation.z = Math.sin(this.clock * (this.amp > 0.3 ? 8 : 3.5)) * (this.kind === 'dog' ? 0.5 : 0.35); // wag / sway
     this.mouth.scale.y = this.chanting ? 1 + 2.2 * Math.abs(Math.sin(this.clock * 7)) : 1;
     if (this.pose || this.chair || this.gest) this.applyPose();
+    if (this.racketOn && !this.pose && !this.chair && !this.seated) this.poseRacket(dt);
   }
 
   /** Sitting on a chair at a table (meeting room): thighs forward, forearms resting on the table. */

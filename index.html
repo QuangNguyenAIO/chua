@@ -26,6 +26,16 @@
     #start div { max-width: 360px; padding: 0 20px; }
     #start h1 { font-weight: 300; letter-spacing: .3em; margin: 0 0 8px; }
     #start input { padding: 10px 14px; border-radius: 999px; border: 0; font-size: 15px; text-align: center; margin: 14px 0; }
+    /* ---- tennis court ---- */
+    #tnHud { display: none; top: 10px; left: 50%; transform: translateX(-50%); min-width: 270px; max-width: 94vw; padding: 8px 14px 10px; background: #0d2a44e8; border-radius: 14px; font-size: 14px; border: 2px solid #ffd23c; }
+    .tnfmt { font-size: 11px; opacity: .7; text-align: center; margin-bottom: 4px; }
+    .tnrow { display: grid; grid-template-columns: 22px 1fr 34px 46px; align-items: center; gap: 6px; padding: 3px 0; font-size: 16px; }
+    .tnrow.me b { color: #ffd23c; } .tnrow span { text-align: center; font-weight: 700; font-size: 20px; } .tnrow em { text-align: center; font-style: normal; font-weight: 700; font-size: 20px; color: #ffd23c; background: #00000040; border-radius: 6px; }
+    .tnmsg { margin-top: 6px; text-align: center; font-size: 13px; opacity: .95; } .tnmsg.win { font-size: 17px; color: #ffd23c; font-weight: 700; }
+    .tnst { width: 100%; margin-top: 6px; text-align: center; font-size: 13px; border-collapse: collapse; } .tnst th { font-weight: 400; opacity: .75; } .tnst td { font-weight: 700; }
+    #tnPrompt { display: none; position: fixed; bottom: 150px; left: 50%; transform: translateX(-50%); padding: 8px 18px; background: #000b; border: 2px solid #ffd23c; border-radius: 999px; font-size: 14px; pointer-events: none; text-align: center; max-width: 92vw; }
+    #tnBar { display: none; position: fixed; bottom: 20px; width: 100%; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    #tnBar button { padding: 9px 14px; font-size: 13px; }
     /* ---- dog world ---- */
     #dogHud { display: none; top: 82px; left: 16px; width: 236px; font-size: 12px; line-height: 1.4; }
     .dogTitle { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
@@ -119,6 +129,18 @@
     <button id="mtBtn">🏢 Phòng họp (H)</button>
     <button id="mute">🔔 Âm thanh</button>
   </div>
+  <div id="tnHud" class="hud"></div>
+  <div id="tnPrompt"></div>
+  <div id="tnBar">
+    <button data-key="KeyY">🎾 Vào sân (Y)</button>
+    <button data-key="KeyJ">🏸 Thuận tay (J)</button>
+    <button data-key="KeyK">↩️ Trái tay (K)</button>
+    <button data-key="KeyL">🥅 Vô-lê (L)</button>
+    <button data-key="KeyU">💥 Đập bóng (U)</button>
+    <button data-key="KeyI">🌈 Lốp bóng (I)</button>
+    <button data-key="KeyO">🪶 Bỏ nhỏ (O)</button>
+    <button id="tnMute">🔔 Âm thanh</button>
+  </div>
   <div id="dogHud" class="hud"></div>
   <div id="dogQuests" class="hud"></div>
   <div id="dogToast"></div>
@@ -143,6 +165,7 @@
   <div id="start"><div>
     <h1>TT PTPM</h1>
     <p>Ngôi chùa trên núi. Hãy dừng lại một chút.</p>
+    <p style="font-size:13px;opacity:.75">Phía đông nam có <b>Sân Te Nít</b> 🎾 — đấu với máy hoặc bạn bè, ai cũng xem được.</p>
     <p style="font-size:13px;opacity:.75">Phía tây có <b>Thế giới chó</b> — bước vào cổng, bạn sẽ hóa thành chó 🐕</p>
     <input id="name" maxlength="16" placeholder="Tên của bạn" /><br />
     <button id="enter">Vào chùa</button>

@@ -9,6 +9,7 @@ import { inDogZone } from './dogzone.js';
 import { buildMeetRoom } from './meetroom.js';
 import { createMeeting } from './meeting.js';
 import { seatPos } from './meetzone.js';
+import { createTennisGame } from './tennisplay.js';
 import { findPath } from './nav.js';
 import { Avatar } from './avatar.js';
 import { startAudio, bell, toggleMute, moTap, bark, sfx } from './audio.js';
@@ -170,6 +171,7 @@ function connect(name) {
         scene.remove(me.avatar.group);
         for (const r of remotes.values()) scene.remove(r.avatar.group);
         remotes.clear(); taken.clear(); taken.set(ABBOT_SEAT, -1);
+        tennis.reset();
       }
       const self = m.players.find((p) => p.id === m.id);
       if (lastPos) Object.assign(self, lastPos);
@@ -210,6 +212,7 @@ function connect(name) {
     else if (m.t === 'chat') { const r = remotes.get(m.id); if (r && !r.room && !meeting.inRoom) r.avatar.say(m.text); }
     else if (m.t === 'room') { const r = remotes.get(m.id); if (r) r.room = m.code; }
     else if (m.t === 'm') meeting.onMsg(m);
+    else if (m.t === 'tn') tennis.onMsg(m);
     else if (m.t === 'count') $('count').textContent = m.n;
   };
   ws.onclose = () => {
@@ -308,13 +311,26 @@ const meeting = createMeeting({
   },
 });
 
+const tennis = createTennisGame({
+  scene, camera, send, actor: actorOf, myId: () => me?.id, camYaw: () => camS.yaw, flash,
+  placeMe(x, z, ry, yaw) { // taking a seat on the court: stand on the baseline facing the net, camera behind
+    if (!me) return;
+    const g = me.avatar.group;
+    g.position.set(x, floorY(x, z), z); g.rotation.y = ry;
+    route = []; vel.set(0, 0, 0); sentState = '';
+    Object.assign(cam, { yaw, pitch: 0.6, dist: 17 });
+    Object.assign(camS, { yaw, pitch: 0.6, dist: 17, x, z });
+  },
+});
+let tennisIn = false;
+
 // ---------- input ----------
 const keys = new Set();
 addEventListener('keydown', (e) => {
   if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
   if (e.code === 'Enter' || e.code === 'NumpadEnter') { e.preventDefault(); keys.clear(); chatInput.focus(); return; } // Enter opens the chat box
   keys.add(e.code);
-  if (me && me.form !== 'dog' && !e.repeat && meeting.key(e.code)) { e.preventDefault(); return; }
+  if (me && me.form !== 'dog' && !e.repeat && (tennis.key(e.code) || meeting.key(e.code))) { e.preventDefault(); return; }
   if (me?.form === 'dog') { // dog controls: see dogplay.js
     if (e.code === 'Space') e.preventDefault();
     if (!e.repeat && dogGame.key(e.code)) e.preventDefault();
@@ -376,7 +392,14 @@ $('greet').onclick = () => doAction('greet');
 $('incense').onclick = () => doAction('incense');
 $('sit').onclick = toggleSit;
 $('mtBtn').onclick = () => meeting.openLobby();
-const toggleSound = () => { const label = toggleMute() ? '🔕 Im lặng' : '🔔 Âm thanh'; $('mute').textContent = label; $('dogMute').textContent = label; };
+$('tnBar').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-key]');
+  if (!b) return;
+  tennis.key(b.dataset.key);
+  b.blur();
+});
+$('tnMute').onclick = () => toggleSound();
+const toggleSound = () => { const label = toggleMute() ? '🔕 Im lặng' : '🔔 Âm thanh'; $('mute').textContent = label; $('dogMute').textContent = label; $('tnMute').textContent = label; };
 $('mute').onclick = toggleSound;
 $('dogMute').onclick = toggleSound;
 $('dogBar').addEventListener('click', (e) => {
@@ -456,6 +479,7 @@ function updateMe(dt) {
       p.x = THREE.MathUtils.clamp(p.x + vel.x * dt, -BOUNDS, BOUNDS);
       p.z = THREE.MathUtils.clamp(p.z + vel.z * dt, -BOUNDS, BOUNDS);
       collide(p);
+      tennis.clamp(p);
     }
     if (moving) a.group.rotation.y = lerpAngle(a.group.rotation.y, Math.atan2(vel.x, vel.z), ease(dt, 12));
     if (chair) { p.x = chair.x; p.z = chair.z; a.group.rotation.y = chair.yaw; vel.set(0, 0, 0); }
@@ -472,6 +496,9 @@ function updateMe(dt) {
     sentState = state; lastSent = now;
     send({ t: 'move', x: p.x, z: p.z, ry: a.group.rotation.y, y: me.form === 'dog' ? p.y : 0, st: me.form === 'dog' ? dogGame.netState : '' });
   }
+
+  const tyaw = tennis.cameraYaw(); // playing tennis: the camera stays behind my baseline
+  if (tyaw !== null && !drag) cam.yaw = tyaw;
 
   // Camera: orbit angles, zoom and the follow point all ease toward their targets
   if (!camS.init) { Object.assign(camS, { x: p.x, y: p.y + 1.4, z: p.z, init: true }); }
@@ -546,6 +573,13 @@ function tick() {
   dogWorld.update(dt, { pos: me ? me.avatar.group.position : null, player: me?.form === 'dog' ? dogGame.info : null });
   dogGame.update(dt);
   meeting.update(dt, me ? me.avatar.group.position : null);
+  tennis.update(dt, me && me.form !== 'dog' ? me.avatar.group.position : null);
+  if (tennis.inside !== tennisIn && me?.form !== 'dog' && !meeting.inRoom) { // entering/leaving the tennis court swaps the button bar
+    tennisIn = tennis.inside;
+    $('bar').style.display = tennisIn ? 'none' : 'flex';
+    $('tnBar').style.display = tennisIn ? 'flex' : 'none';
+    $('hint').textContent = tennisIn ? 'WASD di chuyển · chuột chọn hướng · J thuận tay · K trái tay · L vô-lê · U đập · I lốp · O bỏ nhỏ · Y vào/rời sân' : 'WASD / chạm để di chuyển · E để ngồi lên đệm · kéo chuột để xoay · cuộn để zoom';
+  }
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }

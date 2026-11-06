@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { inDogZone } from './dogzone.js';
+import { TEN, inTennis } from './tennisrules.js';
 import { buddhaStatue, arhatStatue, maitreyaStatue } from './statues.js';
 
 // Vietnamese pagoda compound ("chùa"), laid out along a north-south axis:
@@ -603,6 +604,7 @@ export function buildWorld(scene) {
     if (Math.abs(x) < 8 && z > 10) continue; // keep the road clear
     if (Math.abs(x) < 30 && z > 40) continue; // meeting building and its approach
     if (inDogZone(x, z) || (x < -4 && z > 20 && z < 36)) continue; // dog district and the road leading to it
+    if (inTennis(x, z) || (x > 0 && x < TEN.cx && Math.abs(z - TEN.cz - 9.5) < 3.5)) continue; // tennis court and its path
     tree(scene, x, z, 0.8 + Math.random() * 0.8);
   }
   for (let i = 0; i < 18; i++) {

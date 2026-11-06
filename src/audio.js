@@ -140,6 +140,22 @@ export function sfx(kind, vol = 1) {
   else if (kind === 'sniff') for (let i = 0; i < 4; i++) noise(t + i * 0.18, 0.1, 3200, 0.1 * vol, 'highpass');
   else if (kind === 'thunder') noise(t, 2.6, 160, 0.9 * vol, 'lowpass');
   else if (kind === 'poof') noise(t, 0.4, 900, 0.3 * vol);
+  else if (kind === 'racket') { // tennis: the "pock" of strings on the ball
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(520, t); o.frequency.exponentialRampToValueAtTime(240, t + 0.07);
+    o.connect(env(t, 0.5 * vol, 0.1)); o.start(t); o.stop(t + 0.12);
+    noise(t, 0.03, 2600, 0.25 * vol, 'highpass');
+  }
+  else if (kind === 'bounce') { // ball on the court: a softer pock
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(300, t); o.frequency.exponentialRampToValueAtTime(140, t + 0.06);
+    o.connect(env(t, 0.28 * vol, 0.08)); o.start(t); o.stop(t + 0.1);
+  }
+  else if (kind === 'net') noise(t, 0.18, 500, 0.3 * vol, 'lowpass');
+  else if (kind === 'whistle') for (const [i, f] of [[0, 1900], [1, 2300]]) {
+    const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = f;
+    o.connect(env(t + i * 0.16, 0.08 * vol, 0.15)); o.start(t + i * 0.16); o.stop(t + i * 0.16 + 0.17);
+  }
   else if (kind === 'honk') for (const f of [349, 440]) {
     const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = f;
     const f2 = ctx.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = 900;
